@@ -3824,3 +3824,4 @@ def template_test(
     return True
 
     ### Random line
+    ### Second random line
