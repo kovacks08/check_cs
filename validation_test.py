@@ -215,7 +215,7 @@ if __name__ == '__main__':
 
     # Select the function depending on the test type
     if test_type == 'basic':
-        process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
+        process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, api,),)
     elif test_type == 'network':
         process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
     elif test_type == 'storage':
