@@ -209,13 +209,13 @@ if __name__ == '__main__':
     )
 
     # Select the function depending on the test type
-    if test_type='basic':
+    if test_type == 'basic':
         test_function=basic_test
-    if test_type='network':
+    if test_type == 'network':
         test_function=network_test
-    if test_type='storage':
+    if test_type == 'storage':
         test_function=storage_test
-    if test_type='template':
+    if test_type == 'template':
         test_function=template_test
     
 
