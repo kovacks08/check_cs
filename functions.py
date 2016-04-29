@@ -148,6 +148,12 @@ def create_volume_fromsnap(volume_name,snapshot_id,zone_id,api,net_out):
             net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
             return volume_id
         current_time += 2
+        if counter == timeout:
+            net_out.write(
+                'ERROR: TimeOut. Failed to create volume from snapshot %s.\n' % snapshot_id
+            )
+            return False
+        time.sleep(2)
         time.sleep(2)
     return False
 
@@ -467,6 +473,35 @@ def attach_volume(volume_id,vm_id,api,net_out):
         ### Adding clean up stuff
         return False
 
+    net_out.write('Waiting for volume in ready state')
+    current_time = 0
+    timeout = 60
+    while current_time < timeout:
+        request = {
+            'id': volume_id,
+            'listall': 'True',
+        }
+        result = api.listVolumes(request)
+        if result['volume'][0]['state'] == 'Ready':
+            net_out.write('Volume in %s state' % result['volume'][0]['state'])
+            return volume_id
+        elif result['volume'][0]['state'] == 'Allocated':
+            net_out.write('Volume in %s state' % result['volume'][0]['state'])
+            return volume_id
+        elif result['volume'][0]['state'] == 'Uploaded':
+            net_out.write('Volume in %s state' % result['volume'][0]['state'])
+            return volume_id
+        current_time += 2
+        if counter == timeout:
+            net_out.write(
+                'ERROR: TimeOut. Failed to attach volume %s to VM %s.\n'
+                 % (volume_id, vm_id),
+            )
+            return False
+        time.sleep(2)
+
+    return False
+
     net_out.write(
         'Volume %s successfully attached to VM %s.\n'
         % (volume_id, vm_id)
@@ -562,8 +597,8 @@ def delete_volume(volume_id,vm_id,api,net_out):
 
         if counter == timeout:
             net_out.write(
-                'ERROR: TimeOut. Failed to detach volume from VM %s.'
-                ' Response was %s\n' % (vm_id, result),
+                'ERROR: TimeOut. Failed to detach volume from VM %s.\n'
+                % (vm_id),
             )
             return False
         time.sleep(1)
@@ -2341,9 +2376,8 @@ def delete_vm(vm_id,api,net_out):
 
             elif counter == timeout:
                 net_out.write(
-                    'ERROR: TimeOut. The VM has not been deleted. %s '
-                    'Virtual machine destroy result was: %s\n' %
-                    (result, destroy_result),
+                    'ERROR: TimeOut. The VM has not been deleted. %s \n'
+                    (vm_id),
                 )
                 return False
         else:
@@ -2383,9 +2417,8 @@ def delete_vm(vm_id,api,net_out):
 
         elif counter == timeout:
             net_out.write(
-                'ERROR: TimeOut. The VM has not been expunged. %s '
-                'Virtual machine expunging result was: %s\n' %
-                (result, expunge_result),
+                'ERROR: TimeOut. The VM has not been expunged. %s \n'
+                % (vm_id),
             )
             return False
 
@@ -2647,6 +2680,12 @@ def upload_template(template_name,zone_id,domain_id,account_name,api,net_out):
             net_out.write('Template in %s state' % result['template'][0]['state'])
             return template_id
         current_time += 2
+        if counter == timeout:
+            net_out.write(
+                'ERROR: TimeOut. Failed to register template %s.\n' % template_id
+            )
+            return False
+        time.sleep(2)
         time.sleep(2)
     return False
 
