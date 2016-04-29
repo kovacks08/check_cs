@@ -215,20 +215,15 @@ if __name__ == '__main__':
 
     # Select the function depending on the test type
     if test_type == 'basic':
-        test_function=basic_test
-        test
+        process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
     elif test_type == 'network':
-        test_function=network_test
-        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+        process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
     elif test_type == 'storage':
-        test_function=storage_test
-        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+        process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
     elif test_type == 'template':
-        test_function=template_test
-        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
     elif test_type == 'snapshot_policy':
-        test_function=validate_snashot_policy
-        test_args=(zone_id, template_id, domain_id, account_name, api,),
+        process = multiprocessing.Process(target=validate_snapshot_policy, args=(zone_id, domain_id, account_name, api,),)
     else: 
         print('Wrong test type')
         sys.exit()
@@ -237,9 +232,6 @@ if __name__ == '__main__':
     # Perform the tests on the network we created ###
     processes = []
 
-
-
-    process = multiprocessing.Process(target=test_function, args=test_args)
     process.name = process_name
     process.start()
     processes.append(process)
