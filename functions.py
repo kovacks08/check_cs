@@ -3075,59 +3075,6 @@ def storage_test(
     logging.getLogger('paramiko').addHandler(logging.NullHandler())
 
 
-### We should move this to the bottom once it works ###
-
-    ### Create a data volume4
-    disk_offering_name='EBS'
-    volume_size='10'
-    volume_id4=create_volume(volume_name4,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
-    if volume_id4 == False:
-    ### Adding clean up stuff
-        remove_portforwarding(portforward_id,api,net_out)
-        delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
-        return False
-
-    ### Attach Volume4
-    result_attach=attach_volume(volume_id4,vm_id,api,net_out)
-    if result_attach == False:
-    ### Adding clean up stuff
-        remove_portforwarding(portforward_id,api,net_out)
-        delete_volume(volume_id1,vm_id,api,net_out)
-        delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
-        return False
-
-    ### Create some snapshot schedules
-    ### Create hourly snapshot schedule
-    schedule='HOURLY'
-    hourly_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
-    if hourly_snapshotpolicy_id == False:
-        remove_portforwarding(portforward_id,api,net_out)
-        delete_volume(volume_id4,vm_id,api,net_out)
-        delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
-        return False
-    else:
-         net_out.write('Hourly snapshot policy %s\n' % hourly_snapshotpolicy_id)           
-
-    ### Create daily snapshot schedule
-    schedule='DAILY'
-    daily_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
-    if daily_snapshotpolicy_id == False:
-        remove_portforwarding(portforward_id,api,net_out)
-        delete_volume(volume_id4,vm_id,api,net_out)
-        delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
-        return False
-    else:
-        net_out.write('Daily snapshot policy %s\n' % daily_snapshotpolicy_id)
-
-    ### Finish testing
-    net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
-    net_out.write('-------------Finished testing. Network1,VM and volume4 stay behind -------------\n')
-    remove_portforwarding(portforward_id,api,net_out)
-    return True
 
 ##############################################################################################################
 
@@ -3483,11 +3430,62 @@ def storage_test(
     delete_vm(rootvol_vm_id2,api,net_out)
     delete_template(rootvol_template_id2,api,net_out)
 
+    ### Create a data volume4
+    disk_offering_name='EBS'
+    volume_size='10'
+    volume_id4=create_volume(volume_name4,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
+    if volume_id4 == False:
+    ### Adding clean up stuff
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+
+    ### Attach Volume4
+    result_attach=attach_volume(volume_id4,vm_id,api,net_out)
+    if result_attach == False:
+    ### Adding clean up stuff
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_volume(volume_id1,vm_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+
+    ### Create some snapshot schedules
+    ### Create hourly snapshot schedule
+    schedule='HOURLY'
+    hourly_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
+    if hourly_snapshotpolicy_id == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_volume(volume_id4,vm_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+         net_out.write('Hourly snapshot policy %s\n' % hourly_snapshotpolicy_id)           
+
+    ### Create daily snapshot schedule
+    schedule='DAILY'
+    daily_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
+    if daily_snapshotpolicy_id == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_volume(volume_id4,vm_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        net_out.write('Daily snapshot policy %s\n' % daily_snapshotpolicy_id)
+
+    ### Finish testing
+    net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
+    net_out.write('-------------Finished testing. Network1,VM and volume4 stay behind -------------\n')
+    remove_portforwarding(portforward_id,api,net_out)
+    return True
 
 
 ################### VALIDATE SNAPSHOT POLICY ###########
 
-def validate_snashot_policy(
+def validate_snapshot_policy(
     zone_id,
     domain_id,
     account_name,
