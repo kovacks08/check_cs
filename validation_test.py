@@ -87,7 +87,7 @@ if __name__ == '__main__':
         dest='test_type',
         type=str,
         default='user',
-        help='Type of test: basic,network,storage,templates',
+        help='Type of test: basic,network,storage,templates,snapshot_policy',
     )
 
     # Assign parsed arguments
@@ -208,35 +208,38 @@ if __name__ == '__main__':
         (service_offering_name, service_offering_id),
     )
 
+    ### We wil create a network specifically for each test_type test ###
+    process_name='validation-%s-%s-%d-net' % (test_type,user_name,time.time())
+    network_name='%s-net' % (process_name)
+    account_name=user_name
+
     # Select the function depending on the test type
     if test_type == 'basic':
         test_function=basic_test
-    if test_type == 'network':
+        test
+    elif test_type == 'network':
         test_function=network_test
-    if test_type == 'storage':
+        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+    elif test_type == 'storage':
         test_function=storage_test
-    if test_type == 'template':
+        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+    elif test_type == 'template':
         test_function=template_test
+        test_args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),
+    elif test_type == 'snapshot_policy':
+        test_function=validate_snashot_policy
+        test_args=(zone_id, template_id, domain_id, account_name, api,),
+    else: 
+        print('Wrong test type')
+        sys.exit()
     
 
     # Perform the tests on the network we created ###
     processes = []
 
-    ### We wil create a network specifically for each test_type test ###
-    
-    process_name='validation-%s-%s-%d-net' % (test_type,user_name,time.time())
-    network_name='%s-net' % (process_name)
-    ##displaytext=network_name
-    account_name=user_name
-    process = multiprocessing.Process(target=test_function, args=(
-        zone_id,
-        network_name,
-        template_id,
-        domain_id,
-        account_name,
-        api,
-        ),
-    )
+
+
+    process = multiprocessing.Process(target=test_function, args=test_args)
     process.name = process_name
     process.start()
     processes.append(process)
