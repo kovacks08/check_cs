@@ -1643,6 +1643,7 @@ def create_snapshot_schedule(volume_id,schedule,api,net_out):
         'schedule': execute_time,
         'timezone': time_zone,
     }
+    result=api.createSnapshotPolicy(request)
     if result == {} or 'snapshotpolicy' not in result:
         net_out.write(
             'ERROR: Failed to create snapshot policy %s. '
@@ -3523,38 +3524,59 @@ def validate_snashot_policy(
              net_out.write('policy name: %s\n' % policy['name'])
              net_out.write('policy id: %s\n' % policy['id'])
 
-
-
-    return True
+    ### return True
             
-    ### For each volume, find all the 
-    request = {
+    ### For each volume, find all the snapshots and check the policies
+    volume_snapshots = {}
+    for volume_id in volumes_with_policies:
+
+        ### First we list all the recurring snapshots of the volume
+        ### Redundant - Just control stuff ###
+        request = {
             'account': account_name,
             'domain_id': domain_id,
-            'type': 'DATADISK',
+            'snapshottype': 'RECURRING',
         }
-    result = api.listVolumes(request)
-    if result == {} or 'volume' not in result:
-        net_out.write(
-            'ERROR: Did not find any data volume for the account %s\n'
-            'Result was %s\n' %
-            (account_name, result)
-        )
-    volumes=result['volume']
+        result=api.listSnapshots(request)
+        if result == {} or 'snapshot' not in result:
+            net_out.write('volume %s has no recurring snapshots\n' % volume_id)
+            continue 
+        else:
+            volume_snapshots[volume_id] = result['snapshot'] 
+            pprint(volume_snapshots[volume_id]) 
+        ### End Redundant - Just control stuff ###
+          
+        ### We chec each snapshot policy for the volume
 
-    ### Check the snashotpolicy ###
-    request={
-        'volumeid': volume_id
-    }
-    result=api.listSnapshotPolicies(request)
-    if result == {} or 'snapshotpolicy' not in result:
-        net_out.write(
-            'ERROR: Root volume does not have snapshot policies\n'
-        )
-    snapshot_policies=result['snapshotpolicy']
-
-    for policy in snapshot_policies:
-        pprint(policy) 
+        policies=volume_policies[volume_id] 
+        for policy in policies:
+            policy_interval=policy['intervaltype'] 
+            policy_id=policy['id'] 
+            policy_maxsnaps=policy['maxsnaps'] 
+            net_out.write(
+                'Checking policy %s. Interval: %s. Max snaps: %s.\n' 
+                % (policy_id, policy_interval, policy_maxsnaps)
+            )
+            ### Check the snapshots with this particular interval
+            request = {
+                'account': account_name,
+                'domain_id': domain_id,
+                'snapshottype': 'RECURRING',
+                'intervaltype': policy_interval,
+            }
+            if result == {} or 'snapshot' not in result:
+                net_out.write(
+                    'volume %s has no recurring % snapshots\n' %
+                    (volume_id, policy_interval)
+                )
+            else:
+                policy_snapshots=result['snapshot']
+                pprint(policy_snapshots)
+                snapshot_number=len(policy_snapshots)
+                net_out.write(
+                    'Found %s snapshots with interval %s. MaxSnaps is %s.\n'
+                    % (str(snapshot_number),policy_interval,policy_maxsnaps)
+                )
 
     return True
     
