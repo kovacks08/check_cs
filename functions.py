@@ -1062,7 +1062,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         'ipaddress': ip_address,
     }
     result = api.addNicToVirtualMachine(request)
-    net_out.write(result)
+    ##net_out.write(result)
     output(result)
     net_out.write('Adding NIC 2 to VM...\n')
 
@@ -1077,7 +1077,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
     output(result)
     if 'virtualmachine' not in result:
         net_out.write(
-            'ERROR: Failed job to add NIC '
+            'ERROR: Failed job to add NIC to vm %s.'
             ' Response was %s\n' %
             (vm_id, result),
         )
@@ -1626,7 +1626,7 @@ def create_snapshot_schedule(volume_id,schedule,api,net_out):
         interval_type=schedule
         max_snaps='5'
         execute_time=str(random.randint(10,59))
-    elif eschedule == 'DAILY':
+    elif schedule == 'DAILY':
         interval_type=schedule
         max_snaps='2'
         execute_time='0'+str(random.randint(1,5))
@@ -2259,7 +2259,7 @@ def delete_network(network_id,api,net_out):
 
     if result == {} or 'jobid' not in result.keys():
         net_out.write(
-            'ERROR: Failed to create job to netelet network  %s. '
+            'ERROR: Failed to create job to delete network  %s. '
             ' Response was %s\n' %
             (network_id, result),
         )
@@ -2294,7 +2294,13 @@ def restart_network(network_id,api,net_out,cleanup='False'):
         'cleanup': cleanup,
     }
     result = api.restartNetwork(request)
-    ##net_out.write('Restarting network with clean up...\n')
+    if result == {} or 'jobid' not in result.keys():
+        net_out.write(
+            'ERROR: Failed to create job to restart network  %s. '
+            ' Response was %s\n' %
+            (network_id, result),
+        )
+        return False
 
     result = wait_for_job(result['jobid'], api)
 
@@ -3101,8 +3107,10 @@ def storage_test(
         delete_volume(volume_id4,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
     else:
-         net_out.write('Hourly snapshot policy' % hourly_snapshotpolicy_id)           
+         net_out.write('Hourly snapshot policy %s\n' % hourly_snapshotpolicy_id)           
+
     ### Create daily snapshot schedule
     schedule='DAILY'
     daily_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
@@ -3111,11 +3119,13 @@ def storage_test(
         delete_volume(volume_id4,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
     else:
         net_out.write('Daily snapshot policy %s\n' % daily_snapshotpolicy_id)
+
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
-    net_out.write('-------------Finished testing. Network1,VM and volume1 stay behind -------------\n')
+    net_out.write('-------------Finished testing. Network1,VM and volume4 stay behind -------------\n')
     remove_portforwarding(portforward_id,api,net_out)
     return True
 
@@ -3649,6 +3659,7 @@ def network_test(
     if  port_forwarding_data == False:
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
         
     ip_address=port_forwarding_data['IP']
     public_port=port_forwarding_data['public_port']
@@ -3664,6 +3675,7 @@ def network_test(
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Acquire a public IP
     ipaddress_id=get_public_ip(network_id,api,net_out) 
@@ -3672,6 +3684,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Create a Static NAT from the public IP to the selected VM
     nat_success=enable_nat(ipaddress_id,vm_id,network_id,api,net_out)
@@ -3681,6 +3694,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Add firewall rules ###
 
@@ -3693,6 +3707,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Remove Firewall rule
     success_delete_fwrule=delete_firewall_rule(fwrule_id,api,net_out)
@@ -3703,6 +3718,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
     
     ### Disable NAT
     success_disable_nat=disable_nat(ipaddress_id,api,net_out)
@@ -3712,6 +3728,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Release Public IP
     success_release_ip=release_public_ip(ipaddress_id,network_id,api,net_out)
@@ -3720,6 +3737,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
+        return False
 
     ### Still need to test second Network ###
 
@@ -3731,7 +3749,7 @@ def network_test(
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
-
+        return False
 
     ### Get the current NIC ID
     nic_id1=get_nic(vm_id,network_id,ip_address,api,net_out)
@@ -3741,6 +3759,7 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
+        return False
 
     ### Add additional NIC to the VM ###
     nic_id2=add_nic(vm_id,network_id2,ip_address,api,net_out)
@@ -3750,8 +3769,8 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
+        return False
 
-        
     ### Restart network 1 without cleanup ###
     restart_success=restart_network(network_id,api,net_out,cleanup='False')
     if restart_success == False:
@@ -3760,7 +3779,7 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
-    
+        return False
     
     ### Restart network 2 with cleanup ###
     restart_success=restart_network(network_id2,api,net_out,cleanup='True')
@@ -3770,6 +3789,7 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
+        return False
     
 
     ### Finish testing
