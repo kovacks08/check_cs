@@ -1629,7 +1629,7 @@ def create_snapshot_schedule(volume_id,schedule,api,net_out):
     elif schedule == 'DAILY':
         interval_type=schedule
         max_snaps='2'
-        execute_time='0'+str(random.randint(1,5))
+        execute_time='0'+str(random.randint(1,5))+':01'
     else:
         net_out('ERROR: Unrecognized schedule %s\n' % schedule)
         return False
@@ -3493,6 +3493,13 @@ def validate_snashot_policy(
     account_name,
     api,):
 
+    net_out = open('out_%s' % account_name, 'w')
+    net_out.write(
+         'validate snapshots for account %s at %s\n' %
+        (account_name, datetime.datetime.now())
+    )
+    net_out.write('-----------------------------------------------------\n\n')
+
     ### Find all data volumes for the domain and account ###
     request = {
             'account': account_name,
@@ -3507,11 +3514,12 @@ def validate_snashot_policy(
             (account_name, result)
         )
     volumes=result['volume']
-    pprint(volumes)
+    ##print('-------------------VOLUMES-------------------\n')
+    ##pprint(volumes)
 
     ### Find the snapshot policies for each data volume if any ###
     volume_policies = {} 
-    volumes_with_policies = {} 
+    volumes_with_policies = []
     for volume in volumes:
         volume_id=volume['id'] 
         request={'volumeid': volume_id} 
@@ -3531,7 +3539,6 @@ def validate_snashot_policy(
     for volume_id in volumes_with_policies:
         net_out.write('Volume %s has the following snapshot policies configured\n' % volume_id)
         for policy in volume_policies[volume_id]:
-             net_out.write('policy name: %s\n' % policy['name'])
              net_out.write('policy id: %s\n' % policy['id'])
 
     ### return True
@@ -3553,7 +3560,8 @@ def validate_snashot_policy(
             continue 
         else:
             volume_snapshots[volume_id] = result['snapshot'] 
-            pprint(volume_snapshots[volume_id]) 
+            ##print('-------------------volume %s snapshots-------------------\n' % volume_id)
+            ##pprint(volume_snapshots[volume_id]) 
         ### End Redundant - Just control stuff ###
           
         ### We chec each snapshot policy for the volume
@@ -3561,11 +3569,21 @@ def validate_snashot_policy(
         policies=volume_policies[volume_id] 
         for policy in policies:
             policy_interval=policy['intervaltype'] 
+            print('policy interval %s\n' % policy_interval)
+            if policy_interval == 0:
+                policy_interval_readable = 'HOURLY'
+            elif  policy_interval == 1:
+                policy_interval_readable = 'DAILY'
+            elif  policy_interval == 2:
+                policy_interval_readable = 'WEEKLY'
+            elif  policy_interval == 3:
+                policy_interval_readable = 'MONTHLY'
+            print('policy interval %s\n' % policy_interval_readable)
             policy_id=policy['id'] 
             policy_maxsnaps=policy['maxsnaps'] 
             net_out.write(
                 'Checking policy %s. Interval: %s. Max snaps: %s.\n' 
-                % (policy_id, policy_interval, policy_maxsnaps)
+                % (policy_id, policy_interval_readable, policy_maxsnaps)
             )
             ### Check the snapshots with this particular interval
             request = {
@@ -3577,15 +3595,20 @@ def validate_snashot_policy(
             if result == {} or 'snapshot' not in result:
                 net_out.write(
                     'volume %s has no recurring % snapshots\n' %
-                    (volume_id, policy_interval)
+                    (volume_id, policy_interval_readable)
                 )
             else:
                 policy_snapshots=result['snapshot']
-                pprint(policy_snapshots)
+                ##pprint(policy_snapshots)
                 snapshot_number=len(policy_snapshots)
                 net_out.write(
                     'Found %s snapshots with interval %s. MaxSnaps is %s.\n'
-                    % (str(snapshot_number),policy_interval,policy_maxsnaps)
+                    % (str(snapshot_number),policy_interval_readable,policy_maxsnaps)
+                )
+                for snapshot in policy_snapshots:
+                     net_out.write(
+                    'snpashot %s status is %s.Revertable: %s\n'
+                    % (snapshot['id'],snapshot['state'],snapshot['revertable'])
                 )
 
     return True
