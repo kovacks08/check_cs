@@ -3822,3 +3822,5 @@ def template_test(
     delete_vm(vm_id1,api,net_out)
     delete_network(network_id,api,net_out)
     return True
+
+    ### Random line
