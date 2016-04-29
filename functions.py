@@ -999,7 +999,7 @@ def rebuild_vm(vm_id,api,net_out):
     result = wait_for_job(result['jobid'], api)
     if 'virtualmachine' not in result:
         net_out.write(
-            'ERROR: Failed to use job to rebuild vm %s. '
+            'ERROR: Failed to create job to rebuild vm %s. '
             ' Response was %s\n' %
             (vm_id, result),
         )
@@ -2877,21 +2877,20 @@ def basic_test(
             'new password: %s\n' % vm_password 
         )
 
-
     ### Skipping vm rebuild for now ###
-    ##new_vm_id=rebuild_vm(vm_id,api,net_out)
-    ##if new_vm_id == False:
-        ##net_out.write(
-            ##'ERROR: Failed to rebuild vm\n' 
-        ##)
-    ### Adding clean up stuff
-        ##delete_vm(vm_id,net_out)
-        ##delete_network(network_id,net_out)
-        ##return False
-    ##else:
-         ##net_out.write(
-            ##'new vm id: %s\n' % new_vm_id
-        ##)
+    new_vm_id=rebuild_vm(vm_id,api,net_out)
+    if new_vm_id == False:
+        net_out.write(
+            'ERROR: Failed to rebuild vm\n' 
+        )
+    ## Adding clean up stuff
+        delete_vm(vm_id,net_out)
+        delete_network(network_id,net_out)
+        return False
+    else:
+        net_out.write(
+            'new vm id: %s\n' % new_vm_id
+        )
 
     ### Creating a volume and attaching it to the VM
     net_out.write( 'Creating an additional volume:\n' )
@@ -2976,18 +2975,16 @@ def basic_test(
         return False
 
     ### Change compute offering to Huge
-    scale_result=scale_vm(vm_id,'Huge Instance',api,net_out)
-    ### DEBUG ###
-    return True
-    ### DEBUG ###
-    if scale_result == False:
-        net_out.write(
-            'ERROR: Problem resizing VM'
-        )
+    ## skipping dynamic scale ##
+    ##scale_result=scale_vm(vm_id,'Huge Instance',api,net_out)
+    ##if scale_result == False:
+    ##    net_out.write(
+    ##        'ERROR: Problem resizing VM'
+    ##    )
     ### Adding clean up stuff
-        ##delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
-        return False
+    ##    ##delete_vm(vm_id,api,net_out)
+    ##    delete_network(network_id,api,net_out)
+    ##   return False
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
@@ -3783,7 +3780,8 @@ def network_test(
         return False
 
     ### Add additional NIC to the VM ###
-    nic_id2=add_nic(vm_id,network_id2,ip_address,api,net_out)
+    ip_address2='192.168.10.2'
+    nic_id2=add_nic(vm_id,network_id2,ip_address2,api,net_out)
     if nic_id2 == False:
         remove_portforwarding(portforward_id,api,net_out)
         remove_egress(egress_ids,api,net_out)
