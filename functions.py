@@ -2263,7 +2263,7 @@ def restart_network(network_id,api,net_out,cleanup='False'):
 
     result = wait_for_job(result['jobid'], api)
 
-    if result == {}x :
+    if result == {} or 'success' not in result:
         net_out.write(
             'ERROR: Failed job to Restart network. '
             ' Response was %s\n' %
@@ -2272,6 +2272,7 @@ def restart_network(network_id,api,net_out,cleanup='False'):
         return False
     
     net_out.write('Network restarted sucessfully\n')
+    return True
 
 
 
