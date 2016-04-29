@@ -1263,7 +1263,7 @@ def release_public_ip(ipaddress_id,network_id,api,net_out):
         'listall': 'True',
     }
     result=api.listPublicIpAddresses(request)
-    if result == {} or 'ipaddress' not in result:
+    if result == {} or 'publicipaddress' not in result:
         net_out.write(
             'ERROR: Failed to find Public IP from the network %s. Response was %s\n' %
             (network_id, result),
@@ -2249,6 +2249,29 @@ def delete_network(network_id,api,net_out):
             'Response was %s\n' % (network_id, result),
         )
         return False
+
+def restart_network(network_id,api,net_out,cleanup='False'):
+    net_out.write('Restarting network. Cleanu:p %s\n' %cleanup)
+    net_out.write('Network ID: %s\n' % network_id)
+
+    request = {
+        'id': network_id,
+        'cleanup': cleanup,
+    }
+    result = api.restartNetwork(request)
+    ##net_out.write('Restarting network with clean up...\n')
+
+    result = wait_for_job(result['jobid'], api)
+
+    if result == {}x :
+        net_out.write(
+            'ERROR: Failed job to Restart network. '
+            ' Response was %s\n' %
+            (result),
+        )
+        return False
+    
+    net_out.write('Network restarted sucessfully\n')
 
 
 
@@ -3591,19 +3614,50 @@ def network_test(
     network_name2=network_name+'-aux' 
     network_id2=create_network(zone_id, domain_id, account_name, network_name2, api, net_out, gateway='192.168.10.1')
     if network_id2 == False:
-        net_out.write(
-            'ERROR: Failed to create network %s' %
-            network_name
-        )
-    net_out.write(
-        'Create network %s with ID %s\n' %
-        (network_name,network_id)
-    )
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+
+
+    ### Get the current NIC ID
+    nic_id1=get_nic(vm_id,network_id,ip_address,api,net_out)
+    if nic_id1 == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
 
     ### Add additional NIC to the VM ###
-    
-    
+    nic_id2=add_nic(vm_id,network_id2,ip_address,api,net_out)
+    if nic_id2 == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
 
+        
+    ### Restart network 1 without cleanup ###
+    restart_success=restart_network(network_id,api,net_out,cleanup='False')
+    if restart_success=False:
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+    
+    
+    ### Restart network 2 with cleanup ###
+    restart_success=restart_network(network_id2,api,net_out,cleanup='True')
+    if restart_success=False:
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+    
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
