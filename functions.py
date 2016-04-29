@@ -3430,7 +3430,7 @@ def validate_snashot_policy(
 
     ### Check the snashotpolicy ###
     request={
-        'vollumeid': volume_id
+        'volumeid': volume_id
     }
     result=api.listSnapshotPolicies(request)
     if result == {} or 'snapshotpolicy' not in result:
