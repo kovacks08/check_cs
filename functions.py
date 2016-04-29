@@ -3414,43 +3414,67 @@ def storage_test(
 
 def validate_snashot_policy(
     zone_id,
-    template_id,
     domain_id,
     account_name,
-    vm_id,
     api,):
 
-    ### Get the data of the virtual machine ### 
+    ### Find all data volumes for the domain and account ###
     request = {
-            'id': vm_id,
+            'account': account_name,
+            'domain_id': domain_id,
+            'type': 'DATADISK',
         }
-    result = api.listVirtualMachines(request)
-    if result == {} or 'virtualmachine' not in result:
-        net_out.write(
-            'ERROR: Could not find vm with id %s\n'
-            'Result was %s\n' %
-            (vm_id, result)
-        )
-    vm=result['virtualmachine'][0]
-    vm_name=vm['name']
-
-    ### Get the actual rootvol  ### 
-    request = {
-        'virtualmachineid': vm_id,
-        'listall': 'True',
-        'type':  'ROOT',
-    }
-
     result = api.listVolumes(request)
     if result == {} or 'volume' not in result:
         net_out.write(
-            'ERROR: Failed to find ROOT volume for vm %s.'
-            ' Response was %s\n' % (vm['name'], result)
+            'ERROR: Did not find any data volume for the account %s\n'
+            'Result was %s\n' %
+            (account_name, result)
         )
+    volumes=result['volume']
+    pprint(volumes)
+
+    ### Find the snapshot policies for each data volume if any ###
+    volume_policies = {} 
+    volumes_with_policies = {} 
+    for volume in volumes:
+        volume_id=volume['id'] 
+        request={'volumeid': volume_id} 
+        result=api.listSnapshotPolicies(request)
+        if result=={} or 'snapshotpolicy' not in result:
+            net_out.write('No policy found for volume %s\n' % volume['id'])
+        else:
+            volumes_with_policies.append(volume_id)
+            volume_policies[volume_id]=result['snapshotpolicy'] 
+
+    if volume_policies == {}:
+        net_out.write('No volume found with snapshot policies\n')
         return False
-    volume=result['volume']
-    volume_id=volume[0]['id']
-    volume_name=volume[0]['name']
+    else:
+        net_out.write('The following volumes contain policies: %s\n'% volumes_with_policies')
+
+    for volume_id in volumes_with_policies:
+        net_out.write('Volume %s has the following snapshot policies configured\n' % volume_id)
+        for policy in volume_policies[volume_id]:
+             net_out.write('policy name: %s\n' % policy['name'])
+             net_out.write('policy id: %s\n' % policy['id'])
+
+    return True
+            
+    ### For each volume, find all the 
+     request = {
+            'account': account_name,
+            'domain_id': domain_id,
+            'type': 'DATADISK',
+        }
+    result = api.listVolumes(request)
+    if result == {} or 'volume' not in result:
+        net_out.write(
+            'ERROR: Did not find any data volume for the account %s\n'
+            'Result was %s\n' %
+            (account_name, result)
+        )
+    volumes=result['volume']
 
     ### Check the snashotpolicy ###
     request={
@@ -3642,7 +3666,7 @@ def network_test(
         
     ### Restart network 1 without cleanup ###
     restart_success=restart_network(network_id,api,net_out,cleanup='False')
-    if restart_success=False:
+    if restart_success == False:
         remove_portforwarding(portforward_id,api,net_out)
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
@@ -3652,7 +3676,7 @@ def network_test(
     
     ### Restart network 2 with cleanup ###
     restart_success=restart_network(network_id2,api,net_out,cleanup='True')
-    if restart_success=False:
+    if restart_success == False:
         remove_portforwarding(portforward_id,api,net_out)
         remove_egress(egress_ids,api,net_out)
         delete_vm(vm_id,api,net_out)
