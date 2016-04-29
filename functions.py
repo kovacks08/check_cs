@@ -3814,8 +3814,6 @@ def template_test(
         delete_network(network_id,api,net_out)
         return False
 
-
-
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
     remove_portforwarding(portforward_id,api,net_out)
