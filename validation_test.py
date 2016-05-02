@@ -209,21 +209,26 @@ if __name__ == '__main__':
     )
 
     ### We wil create a network specifically for each test_type test ###
-    process_name='validation-%s-%s-%d-net' % (test_type,user_name,time.time())
+    process_name='validation-%s-%s-%d' % (test_type,user_name,time.time())
     network_name='%s-net' % (process_name)
     account_name=user_name
 
     # Select the function depending on the test type
     if test_type == 'basic':
         process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, api,),)
+        output_name='out_%s' % network_name
     elif test_type == 'network':
         process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
+        output_name='out_%s' % network_name
     elif test_type == 'storage':
         process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
+        output_name='out_%s' % network_name
     elif test_type == 'template':
         process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
+        output_name='out_%s' % network_name
     elif test_type == 'snapshot_policy':
         process = multiprocessing.Process(target=validate_snapshot_policy, args=(zone_id, domain_id, account_name, api,),)
+        output_name='out_%s' % account_name
     else: 
         print('Wrong test type')
         sys.exit()
@@ -257,10 +262,10 @@ if __name__ == '__main__':
                 else:
                     process.join()
                     print(
-                        '\n%s - %s is Finished, check the out_%s file'
+                        '\n%s - %s is Finished, check the %s file'
                         % (datetime.datetime.now(),
                            process.name,
-                           process.name.split("@")[1],
+                           output_name 
                            )
                     )
                     finished_processes.append(process.name)
