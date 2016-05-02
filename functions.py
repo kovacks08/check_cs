@@ -154,7 +154,6 @@ def create_volume_fromsnap(volume_name,snapshot_id,zone_id,api,net_out):
             )
             return False
         time.sleep(2)
-        time.sleep(2)
     return False
 
 def upload_volume(volume_name,volume_url,disk_offering_name,zone_id,account_name,domain_id,api,net_out):
@@ -988,22 +987,78 @@ def rebuild_vm(vm_id,api,net_out):
     }
 
     result=api.restoreVirtualMachine(request)
+    ##if result == {}:
+    ##    net_out.write(
+    ##        'ERROR: Failed to rebuild vm %s. '
+    ##        ' Response was %s\n' %
+    ##        (vm_id, result),
+    ##    )
+    ##    return False
 
-    if result['restorevmresponse'] == {} or 'jobid' not in result['restorevmresponse']:
+    ## We have to assume rebuild job started properly ## 
+    ## We create a loop to wait for the proper status ##
+    # Start VM
+    request = {'id': vm_id}
+    result = api.startVirtualMachine(request)
+
+    if result == {} or 'jobid' not in result.keys():
         net_out.write(
-            'ERROR: Failed to rebuild vm %s. '
+            'ERROR: Failed job to start VM  %s. '
             ' Response was %s\n' %
             (vm_id, result),
         )
         return False
+    net_out.write('Starting VM...\n')
+
     result = wait_for_job(result['jobid'], api)
-    if 'virtualmachine' not in result:
+
+    if result == {} or 'virtualmachine' not in result:
         net_out.write(
-            'ERROR: Failed to create job to rebuild vm %s. '
-            ' Response was %s\n' %
-            (vm_id, result),
+            'ERROR: Failed to start VM %s.'
+            ' Response was %s\n' % (vm_id, result)
         )
         return False
+
+    if 'password' in result['virtualmachine']:
+        vm_password = result['virtualmachine']['password']
+        net_out.write(
+            'VM %s successfully started for the first time. ROOT password: %s.\n'
+            % (vm_id, vm_password),
+        )
+        return vm_password
+    else:
+        net_out.write(
+            'VM %s successfully (re)started.\n'
+            % (vm_id),
+        )
+        return True
+
+    current_time = 0
+    timeout = 60
+    while current_time < timeout:
+        request = {
+            'id': vm_id,
+            'listall': 'True',
+        }
+        result = api.listVirtualMachines(request)
+        if result['virtualmachine'][0]['state'] == 'Ready':
+            net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
+            return volume_id
+        elif result['volume'][0]['state'] == 'Allocated':
+            net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
+            return volume_id
+        elif result['volume'][0]['state'] == 'Uploaded':
+            net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
+            return volume_id
+        current_time += 2
+        if counter == timeout:
+            net_out.write(
+                'ERROR: TimeOut. Failed to create volume from snapshot %s.\n' % snapshot_id
+            )
+            return False
+        time.sleep(2)
+    return False
+
     vm_id=result['virtualmachine']['id']
     return vm_id
 
@@ -2515,7 +2570,7 @@ def get_usercontext(user_name,admin_api):
         return False
     user=result['user'][0]
     if 'apikey' in user:
-        print('Found keys for user %s' % user_name)
+        #print('Found keys for user %s' % user_name)
         user_api_key=user['apikey'] 
         user_api_secret=user['secretkey'] 
         output('apikey %s:' % user_api_key)
@@ -2751,7 +2806,7 @@ def upload_iso(iso_name,bootable,zone_id,domain_id,account_name,api,net_out):
             'isofilter': 'self',
         }
         result = api.listIsos(request)
-        print(result['iso'][0]['isready'])
+        #print(result['iso'][0]['isready'])
         if result['iso'][0]['isready']:
             net_out.write(
                 'ISO %s with ID %s ready: %s\n' %
@@ -2785,7 +2840,7 @@ def basic_test(
 
     # Create the network
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
-    print(network_id)
+    #print(network_id)
     if network_id == False:
         net_out.write(
             'ERROR: Failed to create network %s' %
@@ -2860,9 +2915,24 @@ def basic_test(
         return False
 
 
+
+    ## We rebuild the vm and try to start it 
+    new_vm_password=rebuild_vm(vm_id,api,net_out)
+    if new_vm_password == False:
+        net_out.write(
+            'ERROR: Failed to rebuild vm\n' 
+        )
+    ## Adding clean up stuff
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        net_out.write(
+            'new vm password: %s\n' % new_vm_password
+        )
+
     ### Reset the password ### 
     net_out.write('Resetting passwort of VM...\n')
-
     vm_password=reset_password(vm_id,api,net_out)
     if vm_password == False:
         net_out.write(
@@ -2875,21 +2945,6 @@ def basic_test(
     else:
          net_out.write(
             'new password: %s\n' % vm_password 
-        )
-
-    ### Skipping vm rebuild for now ###
-    new_vm_id=rebuild_vm(vm_id,api,net_out)
-    if new_vm_id == False:
-        net_out.write(
-            'ERROR: Failed to rebuild vm\n' 
-        )
-    ## Adding clean up stuff
-        delete_vm(vm_id,net_out)
-        delete_network(network_id,net_out)
-        return False
-    else:
-        net_out.write(
-            'new vm id: %s\n' % new_vm_id
         )
 
     ### Creating a volume and attaching it to the VM
@@ -2941,7 +2996,7 @@ def basic_test(
 
     # Delete VM snapshot
     delete_snapshot_success=delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out)
-    print('delete_snapshot_success %s\n' % delete_snapshot_success)
+    #print('delete_snapshot_success %s\n' % delete_snapshot_success)
     if delete_snapshot_success == False:
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
@@ -3573,7 +3628,7 @@ def validate_snapshot_policy(
                 policy_interval_readable = 'WEEKLY'
             elif  policy_interval == 3:
                 policy_interval_readable = 'MONTHLY'
-            print('policy interval %s\n' % policy_interval_readable)
+            #print('policy interval %s\n' % policy_interval_readable)
             policy_id=policy['id'] 
             policy_maxsnaps=policy['maxsnaps'] 
             net_out.write(
