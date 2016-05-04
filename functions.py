@@ -987,13 +987,10 @@ def rebuild_vm(vm_id,api,net_out):
     }
 
     result=api.restoreVirtualMachine(request)
-    ##if result == {}:
-    ##    net_out.write(
-    ##        'ERROR: Failed to rebuild vm %s. '
-    ##        ' Response was %s\n' %
-    ##        (vm_id, result),
-    ##    )
-    ##    return False
+
+    ### There seems to be some issue with the return value of this function ###
+    print('api.restoreVirtualMachine result: %s\n' % result)
+    ### Skipping validation
 
     ## We have to assume rebuild job started properly ## 
     ## We create a loop to wait for the proper status ##
@@ -1022,9 +1019,9 @@ def rebuild_vm(vm_id,api,net_out):
     if 'password' in result['virtualmachine']:
         vm_password = result['virtualmachine']['password']
         net_out.write(
-            'VM %s successfully started for the first time. ROOT password: %s.\n'
-            % (vm_id, vm_password),
-        )
+                'VM %s successfully restarted for the first time. ROOT password: %s.\n'
+                % (vm_id, vm_password),
+            )
         return vm_password
     else:
         net_out.write(
@@ -1041,6 +1038,7 @@ def rebuild_vm(vm_id,api,net_out):
             'listall': 'True',
         }
         result = api.listVirtualMachines(request)
+        print('Starting vm. Current state %s\n '% result['virtualmachine'][0]['state'])
         if result['virtualmachine'][0]['state'] == 'Ready':
             net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
             return volume_id
