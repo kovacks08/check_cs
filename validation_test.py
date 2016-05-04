@@ -75,11 +75,17 @@ if __name__ == '__main__':
     )
 
     parser.add_argument(
-        '-u', '--user',
-        dest='template_user',
+        '-d', '--domain',
+        dest='domain_name',
         type=str,
-        default='user',
-        help='The template user name.',
+        help='Domain name',
+    )
+
+    parser.add_argument(
+        '-a', '--account',
+        dest='user_name',
+        type=str,
+        help='Account name',
     )
 
     parser.add_argument(
@@ -94,11 +100,72 @@ if __name__ == '__main__':
     args = parser.parse_args()
     zone_name = args.zone_name
     template_name = args.template_name
-    template_user = args.template_user
+    domain_name = args.domain_name
+    account_name = args.account_name
     test_type = args.test_type
 
+
+    ### Obtain the domain id ###
+
+    request = {
+        'name': domain_name,
+        'listall': 'True',
+    }
+    result=admin_api.listDomains(request)
+    if result == {} or 'domain' not in result:
+        output(
+            message='No domain found matching the domain name %s' % domain_name,
+            success=False,
+        )
+
+    domains=result['domain']
+    domain_id=domains[0]['id']
+
+    ### Verify Account Name ###
+
+    ### If account name is not specified use domain name as account name ###
+    if account_name == {}:
+        account_name = domain_name
+
+    ### Check the account name exists 
+    request = {
+        'domain': domain_id,
+        'listall': 'True',
+        'name': account_name,
+    }
+    result=admin_api.listAccounts(request)
+    if result == {} or 'account' not in result:
+        output(
+            message='No account found matching the account name %s for the specified domain name %s\n' % (account_name, domain_name)
+            success=False,
+        )
+
+    accounts=result['account']
+    account_id=accounts[0]['id']
+
+    ### Validate the user name (the same as the account_name) ###
+    user_name = account_name
+
+    request = {
+            'domainid': domain_id,
+            'account': account_name,
+            'listall': 'True',
+            'username': user_name,
+        }
+
+    user_result = admin_api.listUsers(request)
+    if user_result == {} or user_result['count'] == 0 :
+        print( 'Username %s not found in existing domain %s\n' %
+            (user_name,domain_id)
+            )
+        sys.exit()
+
+    user_id=user_result['user'][0]['id']
+
+    
+
     #### Obtain a user context for user api call ###
-    user_context=get_usercontext(template_user,admin_api)
+    user_context=get_usercontext(user_name,admin_api)
     if 'api_key' not in user_context:
         print('Some error obtaining keys from user %s' % user_name)
         sys.exit()
@@ -148,7 +215,6 @@ if __name__ == '__main__':
         sys.exit()
 
     ### We use the user name as the domain id ###
-    user_name=template_user
 
     request = {
         'name': user_name,
@@ -157,7 +223,7 @@ if __name__ == '__main__':
     result=api.listDomains(request)
     if result == {} or 'domain' not in result:
         output(
-            message='No domain found matching the user name %s' % template_user,
+            message='No domain found matching the user name %s' % user_name,
             success=False,
         )
 
