@@ -180,6 +180,7 @@ if __name__ == '__main__':
         'cpunumber': '1',
         'cpuspeed': '50',
         'memory': '256',
+        'tags': 'vms',
     }
     compute_requests['Small Instance']={
         'displaytext': 'Small Instance',
@@ -187,6 +188,7 @@ if __name__ == '__main__':
         'cpunumber': '1',
         'cpuspeed': '500',
         'memory': '512',
+        'tags': 'vms',
     }
     compute_requests['Huge Instance']={
         'displaytext': 'Huge Instance',
@@ -194,6 +196,7 @@ if __name__ == '__main__':
         'cpunumber': '8',
         'cpuspeed': '1000',
         'memory': '16384',
+        'tags': 'vms',
     }
 
     request = {}
@@ -268,6 +271,7 @@ if __name__ == '__main__':
             'name':  disk_offering_name,
             'customized': 'True',
             'displayoffering': 'True',
+            'tags': 'ebs',
         }
         result=api.createDiskOffering(request)
         if result == {} or 'diskoffering' not in result:
