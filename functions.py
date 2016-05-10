@@ -33,6 +33,193 @@ def output(message, success=True):
         sys.stderr.write(colorama.Fore.RESET)
         sys.exit(1)
 
+def create_domain(domain_name,parent_domain_id,api):
+    ### Check if the domain exists
+    request = {
+        'id': parentdomain_id,
+        'listall': 'True'
+    }
+
+    mychildrendomain_result=api.listDomainChildren(request)
+
+
+    if mychildrendomain_result == {} or mychildrendomain_result['count'] == 0:
+        print( 'No childrendomains for parent_domain %s' % parent_domain )
+    else:
+        mychildrendomain_ids = [domain['id']
+            for domain
+            in mychildrendomain_result['domain']]
+        mychildrendomain_names = [domain['name']
+            for domain
+            in mychildrendomain_result['domain']]
+
+    if domain_name in mychildrendomain_names:
+        output('domain %s already exists' % domain_name)
+        domain_id=mychildrendomain_ids[mychildrendomain_names.index(domain_name)]
+        return domain_id
+
+    request = {
+            'name': user_name,
+            'parentdomainid': parentdomain_id
+        }
+
+    ### If domain does not exist we create it ###
+    domain_result = api.createDomain(request)
+    if domain_result == {} or 'domain' not in domain_result:
+        print( "Could not crate domain for user %s" % user_name )
+        print(domain_result)
+        return False
+    domain_id = domain_result['domain']['id']
+    return domain_id
+    
+def create_account(account_name,domain_id,api):
+    ### Find if the domain_id exists 
+    request = {
+        'id': domain_id,
+        'listall': 'True'
+    }
+    result=api.listDomains(request)
+    if result == {} or 'domain' not in result:
+        print ('No domain found with id %s\n' % domain_id)
+        return False
+    else:
+        domain=result['domain'][0]
+        print ('Domain path is %s\n' % domain['path'])
+
+    ### Check if the account exists ###
+    request = {
+        'name': account_name,
+        'listall': 'True',
+        'domainid': domain_id,
+    }
+    result=api.listAccounts(request)
+    if result == {} or 'account' not in result: 
+        print('Account %s not found or does not exist\n' % account_name)
+    else:
+        print('Account %s already exists\n' % account_name)
+        account=result['account'][0]
+        return account['id']
+
+    ## If account does not exist we create it
+    request = {
+            'accounttype': 2,
+            'username': account_name,
+            'email': 'email@email.com',
+            'firstname': account_name,
+            'lastname': account_name,
+            'password': 'Interoute01',
+            'domainid': domain_id
+    }
+    account_result = api.createAccount(request)
+    if account_result == {} or 'account' not in account_result:
+        print(account_result)
+        print( "Could not create account %s" % account_name )
+        return False
+    account_id = account_result['account']['id']
+    account_user = account_result['account']['user'][0]
+    user_id=account_user['id']
+    print(  'Account %s created.\n'
+            'Account id: %s\n'
+            'User id: %s\n' %
+            (account_name,account_id,user_id)
+    )
+    return account_id
+    
+
+def create_domainandaccount(account_name,parentdomain_id,api):
+
+    DomainAccountIds={}
+    ### Assuming account and domain name are the same ###
+    domain_name=account_name
+
+    ### Domain creation ###
+    ### Check if the domain already exists
+    request = {
+        'id': parentdomain_id,
+        'listall': 'True'
+    }
+
+    mychildrendomain_result=api.listDomainChildren(request)
+
+    mychildrendomain_names = {}
+
+    if mychildrendomain_result == {} or 'domain' not in mychildrendomain_result:
+        print( 'No childrendomains for parent_domain %s' % parentdomain_id )
+    else:
+        for domain in mychildrendomain_result['domain']:
+            if domain['name'] == domain_name:
+                domain_id=domain['id']
+                output('Domain %s already exists' % domain_name)
+                output('Domain id: %s' % domain_id)
+                ### Get the account
+                request={
+                    'name': account_name,
+                    'listall': 'True',
+                    'domainid': domain_id,
+                }
+                account_result = api.listAccounts(request)
+                if account_result == {} or 'account' not in account_result:
+                    print( 'Account %s not found in existing domain %s\n' %
+                        (account_name,domain_id)
+                    )
+                    request = {
+                        'accounttype': 2,
+                        'username': account_name,
+                        'email': 'email@email.com',
+                        'firstname': account_name,
+                        'lastname': account_name,
+                        'password': 'Interoute01',
+                        'domainid': domain_id
+                    }
+                    account_result = api.createAccount(request)
+                    if account_result == {}:
+                        print( "Could not create user for user %s" % user_name )
+                        return False
+                    account_id = account_result['account']['id']
+                    account_user = account_result['account']['user'][0]
+                else:
+                    account_id=account_result['account'][0]['id']
+
+                print('Account ID: %s' % account_id)
+                DomainAccountIds['AccountId']=account_id
+                DomainAccountIds['DomainId']=domain_id
+                return DomainAccountIds
+
+    ### If the domain does not exist ###
+    request = {
+            'name': domain_name,
+            'parentdomainid': parentdomain_id
+        }
+
+    domain_result = api.createDomain(request)
+    if domain_result == {}:
+        print( "Could not crate domain  %s" % domain_name )
+        print(domain_result)
+        return False
+    domain_id = domain_result['domain']['id']
+
+    ### Create the account and user
+    request = {
+            'accounttype': 2,
+            'username': account_name,
+            'email': 'email@email.com',
+            'firstname': account_name,
+            'lastname': account_name,
+            'password': 'Interoute01',
+            'domainid': domain_id
+    }
+    account_result = api.createAccount(request)
+    if account_result == {}:
+        print(account_result)
+        print( "Could not create user for user %s" % user_name )
+        return False
+    account_id = account_result['account']['id']
+    account_user = account_result['account']['user'][0]
+
+    DomainAccountIds['AccountId']=account_id
+    DomainAccountIds['DomainId']=domain_id
+    return DomainAccountIds
+
 
 def wait_stop(vm_id, api, timeout=75):
     current_time = 0
@@ -717,8 +904,8 @@ def deploy_vm_iso(
     startvm='False'):
 
     net_out.write(
-        'Deploying VM %s to offering %s \n' %
-        (vm_name, offering_name)
+        'Deploying VM %s to offering %s.Start %s \n' %
+        (vm_name, offering_name, startvm)
     )
 
     ### Get the service offering ID ###
@@ -763,7 +950,7 @@ def deploy_vm_iso(
         'networkids': network_id,
         'name': vm_name,
         'displayname': vm_name,
-        'startvm': 'false',
+        'startvm': startvm,
         'domainid': domain_id,
         'account': account_name,
         'diskofferingid': disk_offering_id,
@@ -812,8 +999,8 @@ def deploy_vm(
     startvm='False'):
 
     net_out.write(
-        'Deploying VM %s to offering %s \n' %
-        (vm_name, offering_name)
+        'Deploying VM %s to offering %s.Startvm %s \n' %
+        (vm_name, offering_name , startvm)
     )
 
     ### Get the service offering ID ###
@@ -862,7 +1049,7 @@ def deploy_vm(
         'networkids': network_id,
         'name': vm_name,
         'displayname': vm_name,
-        'startvm': 'false',
+        'startvm': startvm,
         'domainid': domain_id,
         'account': account_name,
     }
@@ -2492,7 +2679,7 @@ def create_network(zone_id, domain_id, account_name, network_name, api, net_out,
         'name': 'PrivateWithGatewayServices'
     }
     networkoffering_result=api.listNetworkOfferings(request)
-    if  networkoffering_result == {} or networkoffering_result['count'] == 0:
+    if  networkoffering_result == {} or 'networkoffering' not in networkoffering_result:
         print( 'No network offering PrivateWithGatewayServices found' )
     networkoffering_id=networkoffering_result['networkoffering'][0]['id']
     ##output( 'Networkofferingid is %s' % networkoffering_id)
