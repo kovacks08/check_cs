@@ -83,7 +83,8 @@ if __name__ == '__main__':
 
     parser.add_argument(
         '-a', '--account',
-        dest='user_name',
+        dest='account_name',
+        default='',
         type=str,
         help='Account name',
     )
@@ -124,7 +125,7 @@ if __name__ == '__main__':
     ### Verify Account Name ###
 
     ### If account name is not specified use domain name as account name ###
-    if account_name == {}:
+    if account_name == '':
         account_name = domain_name
 
     ### Check the account name exists 
@@ -134,9 +135,11 @@ if __name__ == '__main__':
         'name': account_name,
     }
     result=admin_api.listAccounts(request)
+    print('Account name %s\n' % account_name)
+    #pprint(result)
     if result == {} or 'account' not in result:
         output(
-            message='No account found matching the account name %s for the specified domain name %s\n' % (account_name, domain_name)
+            message=('No account found matching the account name %s for the specified domain name %s\n' % (account_name, domain_name)),
             success=False,
         )
 
