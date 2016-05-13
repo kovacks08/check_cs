@@ -908,6 +908,28 @@ def deploy_vm_iso(
         (vm_name, offering_name, startvm)
     )
 
+    ### Check if vm already exists ###
+
+    request = {
+        'zoneid': zone_id,
+        'networkids': network_id,
+        'name': vm_name,
+        'displayname': vm_name,
+        'account': account_name,
+        'domainid': domain_id
+    }
+
+    vm_result = api.listVirtualMachines(request)
+
+    if 'virtualmachine' in vm_result:
+        vm_id=vm_result['virtualmachine'][0]['id']
+        net_out.write(
+            'VM already exists %s'
+            ' id is %s\n'  %
+            (vm_name, vm_id),
+        )
+        return vm_id
+
     ### Get the service offering ID ###
     request = {
         'listall': 'True',
@@ -954,6 +976,7 @@ def deploy_vm_iso(
         'domainid': domain_id,
         'account': account_name,
         'diskofferingid': disk_offering_id,
+        'hypervisor': 'VMware',
     }
 
     result = api.deployVirtualMachine(request)
@@ -1176,7 +1199,7 @@ def rebuild_vm(vm_id,api,net_out):
     result=api.restoreVirtualMachine(request)
 
     ### There seems to be some issue with the return value of this function ###
-    print('api.restoreVirtualMachine result: %s\n' % result)
+    ##print('api.restoreVirtualMachine result: %s\n' % result)
     ### Skipping validation
 
     ## We have to assume rebuild job started properly ## 
@@ -1225,7 +1248,7 @@ def rebuild_vm(vm_id,api,net_out):
             'listall': 'True',
         }
         result = api.listVirtualMachines(request)
-        print('Starting vm. Current state %s\n '% result['virtualmachine'][0]['state'])
+        #print('Starting vm. Current state %s\n '% result['virtualmachine'][0]['state'])
         if result['virtualmachine'][0]['state'] == 'Ready':
             net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
             return volume_id
@@ -1349,7 +1372,7 @@ def get_nic(vm_id,network_id,ip_address,api,net_out):
     }
     result = api.listNics(request)
    
-    print (result)
+    #print (result)
     
     if result == {} or 'nic' not in result:
         net_out.write(
@@ -2074,10 +2097,10 @@ def attach_iso(iso_id,vm_id,api,net_out):
     request = {
         'id': iso_id,
         'listall': 'True',
-        'isofilter': 'self',
+        'isofilter': 'all',
     }
     result = api.listIsos(request)
-    if result == {} or 'ISO' not in result:
+    if result == {} or 'iso' not in result:
         net_out.write(
             'ERROR: Failed to find ISO with id %s.'
             ' Response was %s\n' % (template_id, result)
@@ -2116,8 +2139,8 @@ def attach_iso(iso_id,vm_id,api,net_out):
         return False
 
     net_out.write(
-        'Volume %s successfully attached to VM %s.\n'
-        % (volume_id, vm_id)
+        'ISO %s successfully attached to VM %s.\n'
+        % (iso_id, vm_id)
     )
     return True
 
@@ -2137,16 +2160,17 @@ def detach_iso(vm_id,api,net_out):
         )
         return False
 
-    virtual_machine=['virtualmachine'][0]
-    vm_name=virtualmachine['name']
+    virtual_machine=result['virtualmachine'][0]
+    vm_name=virtual_machine['name']
 
-    if 'isoid' not in virtualmachine:
+    if 'isoid' not in virtual_machine:
         net_out.write(
             'ERROR: Failed to find ISO attached to vm  %s with id %s.\n' %
             (vm_name, vm_id, result)
         )
         return False
     else: 
+        iso_id=virtual_machine['isoid']
         net_out.write(
             'Currently attached ISO id %s.\n' %
             (iso_id)
@@ -2177,8 +2201,8 @@ def detach_iso(vm_id,api,net_out):
         return False
 
     net_out.write(
-        'Volume %s successfully attached to VM %s.\n'
-        % (volume_id, vm_id)
+        'ISO %s successfully detached to VM %s.\n'
+        % (iso_id, vm_id)
     )
     return True
 
@@ -2191,7 +2215,7 @@ def delete_iso(iso_id,api,net_out):
         'isofilter': 'self',
     }
     result = api.listIsos(request)
-    if result == {} or 'ISO' not in result:
+    if result == {} or 'iso' not in result:
         net_out.write(
             'ERROR: Failed to find ISO with id %s.'
             ' Response was %s\n' % (iso_id, result)
@@ -2866,7 +2890,7 @@ def delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out):
             ) 
             return True
         
-def upload_template(template_name,zone_id,domain_id,account_name,api,net_out):
+def upload_template(template_name,zone_id,domain_id,is_public,account_name,api,net_out):
     net_out.write('Uploading template %s ...\n' % (template_name))
 
     request={}
@@ -2890,7 +2914,7 @@ def upload_template(template_name,zone_id,domain_id,account_name,api,net_out):
         'url': 'http://10.220.2.77/centos64.ova',
         'zoneid': zone_id,
         'isfeatured': 'True',
-        'ispublic': 'True',
+        'ispublic': is_public,
         'domainid': domain_id,
         'account': account_name,
         'passwordenabled': True,
@@ -2907,7 +2931,7 @@ def upload_template(template_name,zone_id,domain_id,account_name,api,net_out):
         )
         return False
 
-    template_id = result['template']['id']
+    template_id = result['template'][0]['id']
     net_out.write(
         'Template successfully registered on zone %s with ID %s.\n'
         % (template_id, zone_id)
@@ -2915,18 +2939,19 @@ def upload_template(template_name,zone_id,domain_id,account_name,api,net_out):
 
     net_out.write('Waiting for template in ready state')
     current_time = 0
-    timeout = 60
+    timeout = 300
     while current_time < timeout:
         request = {
             'id': template_id,
             'templatefilter': 'self',
         }
         result = api.listTemplates(request)
-        if result['template'][0]['isready'] == 'True':
-            net_out.write('Template in %s state' % result['template'][0]['state'])
+        #print(result['template'][0]['isready'])
+        if str(result['template'][0]['isready']) == 'True':
+            net_out.write('Template in %s state' % result['template'][0]['status'])
             return template_id
-        current_time += 2
-        if counter == timeout:
+        current_time += 5
+        if current_time == timeout:
             net_out.write(
                 'ERROR: TimeOut. Failed to register template %s.\n' % template_id
             )
@@ -4109,6 +4134,7 @@ def template_test(
         delete_network(network_id,api,net_out)
         return False
 
+    ### Skip deploying vm from ISO ###
     ### Deploy VM from ISO1 ###
     vm_id2=deploy_vm_iso(
         vm_name2,
@@ -4145,12 +4171,12 @@ def template_test(
     elif  vm_start_result == True:
         output('vm2 stopped successfully')
 
-    ### We clean_up ###
+    ### We clean_up the first test ###
     delete_vm(vm_id2,api,net_out)
     delete_iso(iso_id1,api,net_out)
     
-    ### Upload template1 ###
-    template_id=upload_template(template_name,zone_id,domain_id,account_name,api,net_out)
+    ### Upload template1 (not public)###
+    template_id1=upload_template(template_name,zone_id,domain_id,'False',account_name,api,net_out)
     if template_id1==False:
         delete_network(network_id,api,net_out)
         return False
@@ -4164,12 +4190,12 @@ def template_test(
         account_name=account_name,
         net_out=net_out,
         api=api,
-        template_id=template_id,
+        template_id=template_id1,
         offering_name='Medium Instance',
         startvm='False',
     )
     if vm_id1 == False:
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False 
 
@@ -4178,7 +4204,7 @@ def template_test(
     if vm_password == False:
     ### Adding clean up stuff
         delete_vm(vm_id1,api,net_out)
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_network(network_id,api,net_out)
     
     ### Upload ISO2 ###
@@ -4186,22 +4212,22 @@ def template_test(
     iso_id2=upload_iso(iso_name2,bootable,zone_id,domain_id,account_name,api,net_out)
     if iso_id2 == False:
         delete_iso(iso_id2,api,net_out)
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
     ### Attach ISO to vm ###
-    attach_result=attach_iso(iso_id2,vm_id,api,net_out)
+    attach_result=attach_iso(iso_id2,vm_id1,api,net_out)
     if attach_result == False:
         delete_iso(iso_id2,api,net_out)
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
     ### Prepare Portforwarding Rules ###
-    port_forwarding_data=add_portforwarding(network_id,vm_id,api,net_out)
+    port_forwarding_data=add_portforwarding(network_id,vm_id1,api,net_out)
 
     ip_address=port_forwarding_data['IP']
     public_port=port_forwarding_data['public_port']
@@ -4227,7 +4253,7 @@ def template_test(
         )
         remove_portforwarding(portforward_id,api,net_out)
         delete_iso(iso_id2,api,net_out)
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
@@ -4249,22 +4275,21 @@ def template_test(
     remove_portforwarding(portforward_id,api,net_out)
     ### We don't error control ### 
 
-    result_detach=detach_iso(vm_id,api,net_out)
+    result_detach=detach_iso(vm_id1,api,net_out)
     if result_detach==False:
         net_out.write(
             'Could not find cdrom in mount result'
         )
         delete_iso(iso_id2,api,net_out)
-        delete_template(template_id,api,net_out)
+        delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
-    remove_portforwarding(portforward_id,api,net_out)
     delete_iso(iso_id2,api,net_out)
-    delete_template(template_id,api,net_out)
+    delete_template(template_id1,api,net_out)
     delete_vm(vm_id1,api,net_out)
     delete_network(network_id,api,net_out)
     return True
