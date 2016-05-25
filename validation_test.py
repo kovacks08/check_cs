@@ -93,8 +93,8 @@ if __name__ == '__main__':
         '-o', '--test_type',
         dest='test_type',
         type=str,
-        default='user',
-        help='Type of test: basic,network,storage,templates,snapshot_policy',
+        default='basic',
+        help='Type of test: basic,network,storage,templates,snapshot_policy,lifecycle',
     )
 
     # Assign parsed arguments
@@ -282,40 +282,116 @@ if __name__ == '__main__':
     network_name='%s-net' % (process_name)
     account_name=user_name
 
+    processes = []
     # Select the function depending on the test type
     if test_type == 'basic':
         process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, api,),)
         output_name='out_%s' % network_name
+        process.name = process_name
+        process.start()
+        processes.append(process)
+        if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'network':
         process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
         output_name='out_%s' % network_name
+        process.name = process_name
+        process.start()
+        processes.append(process)
+        if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'storage':
         process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
         output_name='out_%s' % network_name
+        process.name = process_name
+        process.start()
+        processes.append(process)
+        if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'template':
         process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
         output_name='out_%s' % network_name
+        process.name = process_name
+        process.start()
+        processes.append(process)
+        if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'snapshot_policy':
         process = multiprocessing.Process(target=validate_snapshot_policy, args=(zone_id, domain_id, account_name, api,),)
         output_name='out_%s' % account_name
+        process.name = process_name
+        process.start()
+        processes.append(process)
+        if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
+    elif test_type == 'lifecycle':
+        ### For a lifecycle policy we create a process for every single vm the user that has lfv in the name ###
+        request = {
+            'domainid': domain_id,
+            'zone_id': zone_id,
+            'name': 'lfv'
+        }
+        result = api.listVirtualMachines(request)
+        if result == {} or 'virtualmachine' not in result:
+            print('Could not find any vm for the user matching lfv\n')
+            sys.exit()
+        virtualmachines=result['virtualmachine']
+        for virtualmachine in virtualmachines:
+            virtualmachine_id=virtualmachine['id']
+            process = multiprocessing.Process(target=lifecycle_test, args=(zone_id, network_name, vm_id, domain_id, account_name, api,),)
+            process.name = process_name
+            process.start()
+            processes.append(process)
+            if process.is_alive():
+            print(
+                '%s - %s is Started'
+                % (datetime.datetime.now(), process.name)
+            )
+        else:
+            print('ERROR: %s failed to Start' % process.name)
+            
     else: 
         print('Wrong test type')
         sys.exit()
     
 
     # Perform the tests on the network we created ###
-    processes = []
 
-    process.name = process_name
-    process.start()
-    processes.append(process)
-    if process.is_alive():
-        print(
-            '%s - %s is Started'
-            % (datetime.datetime.now(), process.name)
-        )
-    else:
-        print('ERROR: %s failed to Start' % process.name)
+    #process.name = process_name
+    #process.start()
+    #processes.append(process)
+    #if process.is_alive():
+        #print(
+            #'%s - %s is Started'
+            #% (datetime.datetime.now(), process.name)
+        #)
+    #else:
+        #print('ERROR: %s failed to Start' % process.name)
 
     finished_processes = []
     while len(finished_processes) < len(processes):
