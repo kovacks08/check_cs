@@ -3027,6 +3027,73 @@ def upload_iso(iso_name,bootable,zone_id,domain_id,account_name,api,net_out):
         time.sleep(10)
     return False
 
+################## LIFECYCLE TEST #########################
+##lifecycle_test, args=(zone_id, vm_id, domain_id, account_name, api,)
+
+### Lifecycle test perfomrs the following operations ###
+### Reboot VM ###
+### Stop VM ###
+### Start VM ##
+### Add addtional NIC ###
+### Add additional EBS disk ###
+### Remove EBS disk ###
+
+def lifecycle_test(
+    zone_id,
+    vm_id,
+    domain_id,
+    account_name,
+    api,):
+
+
+    #Create output file
+    net_out = open('out_%s' % vm_id, 'w')
+    net_out.write(
+        'lifecycle test for vm %s at %s\n' %
+        (vm_id, datetime.datetime.now())
+    )
+    net_out.write('-----------------------------------------------------\n\n')
+
+    ### First of all we gather data about the VM  an the network ###
+    request = {
+        'id': vm_id,
+    }
+    result = api.listVirtualMachines(request)
+    if result == {} or 'virtualmachine' not in result:
+            print('Could not find any vm for the user matching lfv\n')
+            sys.exit()
+        virtualmachines=result['virtualmachine']
+    
+
+
+    # Reboot VM #
+    request = {'id': vm_id}
+    result = api.rebootVirtualMachine(request)
+
+    if result == {} or 'jobid' not in result.keys():
+        net_out.write(
+            'ERROR: Failed to create job to reboot VM on network %s. '
+            ' Response was %s\n' % (network_id, result),
+        )
+    ### Adding clean up stuff
+        delete_vm(vm_id,api,net_out)
+        return False
+    net_out.write('Rebooting VM...\n')
+
+    result = wait_for_job(result['jobid'], api)
+
+    if result == {} or 'virtualmachine' not in result:
+        net_out.write(
+            'ERROR: Failed to reboot VM on network %s.'
+            ' Response was %s\n' % (network_id, result),
+        )
+    ### Adding clean up stuff
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+
+
+
 ################## BASIC TEST ##############################
             
 def basic_test(
@@ -3079,6 +3146,7 @@ def basic_test(
     )
     if vm_id == False:
         return False
+
 
 #### From this point if there is an error destroy the vm and the network
 
