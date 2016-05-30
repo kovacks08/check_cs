@@ -333,12 +333,9 @@ if __name__ == '__main__':
 
 
     ### List available Templates
-    template_names={'Debian74','Centos64'}
 
 
     ### Get the Os types ###
-    
-
     request={
     }
 
@@ -348,37 +345,82 @@ if __name__ == '__main__':
     ostype_ids={}
     for ostype in ostype_list:
         if ostype['description']=='Debian GNU/Linux 7(64-bit)':
-            ostype_ids['Debian']=ostype['id']
+            ostype_ids['Debian74']=ostype['id']
         elif ostype['description']=='CentOS 6.4 (64-bit)': 
-            ostype_ids['CentOS']=ostype['id']
+            ostype_ids['Centos64']=ostype['id']
+        elif ostype['description']=='Windows Server 2012 R2 (64-bit)':
+            ostype_ids['Windows2012R2']=ostype['id']
 
     template_requests={}
-    template_requests['Debian74']={
-        'displaytext': 'Debian74',
-        'format': 'OVA',
-        'hypervisor': 'VMWare',
-        'name': 'Debian74',
-        'ostypeid': ostype_ids['Debian'],
-        'url': 'http://10.220.2.77/debian74.ova',
-        'zoneid': zone_id,
-        'isfeatured': 'True',
-        'ispublic': 'True',
-        'passwordenabled': True,
-        'isdynamicallyscalable': True,
+    ##nic_types={'E1000','Vmxnet3'}
+    nic_types={'E1000','Vmxnet3'}
+    ##disk_types={'scsi','ide','osdefault'}
+    disk_types={'scsi','osdefault'}
+    template_base_list={'Windows2012R2','Debian74','Centos64'}
+    template_url={
+        'Windows2012R2':'http://10.220.2.77/WIN2012R2SE-MH-160316.ova',
+        'Debian74':'http://10.220.2.77/debian74.ova',
+        'Centos64':'http://10.220.2.77/centos64.ova'
     }
-    template_requests['Centos64']={
-        'displaytext': 'Centos64',
-        'format': 'OVA',
-        'hypervisor': 'VMWare',
-        'name': 'Centos64',
-        'ostypeid': ostype_ids['CentOS'], 
-        'url': 'http://10.220.2.77/centos64.ova',
-        'zoneid': zone_id,
-        'isfeatured': 'True',
-        'ispublic': 'True',
-        'passwordenabled': True,
-        'isdynamicallyscalable': True,
-    }
+
+
+    # Create the request for all the combinations of template base, nic type and storage type
+    
+    template_names=[]
+    template_requests={}
+
+    for template_base in template_base_list:
+        ## We create a template with only the base name and vmxnet3 and osdefault
+        template_name=template_base
+        template_names.append(template_name)
+        template_requests[template_name]={
+            'name': template_name,
+            'displaytext': template_name,
+            'format': 'OVA',
+            'hypervisor': 'VMWare',
+            'ostypeid': ostype_ids[template_base],
+            'url': template_url[template_base],
+            'zoneid': zone_id,
+            'isfeatured': 'True',
+            'ispublic': 'True',
+            'passwordenabled': True,
+            'isdynamicallyscalable': True,
+            'isdynamicallyscalable': True,
+            'details[0].nicAdapter': 'Vmxnet3',
+            'details[0].rootDiskController': 'osdefault',
+            'details[0].dataDiskController': 'osdefault',
+       }
+       
+
+
+        ### After that we go for the 
+        for nic_type in nic_types:
+            for disk_type in disk_types:
+                template_name='%s-flv-%s-%s' % (template_base,nic_type,disk_type)
+                template_names.append(template_name)
+                template_requests[template_name]={
+                    'name': template_name,
+                    'displaytext': template_name,
+                    'format': 'OVA',
+                    'hypervisor': 'VMWare',
+                    'ostypeid': ostype_ids[template_base],
+                    'url': template_url[template_base],
+                    'zoneid': zone_id,
+                    'isfeatured': 'True',
+                    'ispublic': 'True',
+                    'passwordenabled': True,
+                    'isdynamicallyscalable': True,
+                    'isdynamicallyscalable': True,
+                    'details[0].nicAdapter': nic_type,
+                    'details[0].rootDiskController': disk_type,
+                    'details[0].dataDiskController': disk_type,
+                }
+
+    ### 
+    ##pprint(template_names)
+    ##pprint(template_requests)
+    ##sys.exit()
+    ###
 
     request = {
         'templatefilter': 'executable',
