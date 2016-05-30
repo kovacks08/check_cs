@@ -154,7 +154,7 @@ if __name__ == '__main__':
             zone_id = zone['id']
             break
 
-    ## List all the templates with the name flv ##
+    ## List all the templates with the name lfv ##
 
     # Check if template is present in selected zone
     request = {
@@ -167,13 +167,13 @@ if __name__ == '__main__':
 
     # Obtain template ID
     for template in temp_result['template']:
-        if 'flv' in template['name']:
+        if 'lfv' in template['name']:
             template_name=template['name']
             template_id=template['id']
             template_ids[template_name]=template_id
     if template_ids is None:
         sys.stderr.write(
-            'Did not find templates with name flv\n'
+            'Did not find templates with name lfv\n'
         )
 
     pprint(template_ids)
@@ -204,7 +204,7 @@ if __name__ == '__main__':
 
         ### Creating domains and users ###
         ### Create the username
-        account_name='flv-%s-%s' % (base_username,zone_name)
+        account_name='lfv-%s-%s' % (base_username,zone_name)
         print( "Account name is %s" % account_name )
         domain_name=account_name
         DomainAccountIds=create_domainandaccount(account_name,parentdomain_id,api)
@@ -231,7 +231,7 @@ if __name__ == '__main__':
 
         ### Creating domains and users ###
         ### Create the username
-        account_name='flv-%s-%s' % (base_username,zone_name)
+        account_name='lfv-%s-%s' % (base_username,zone_name)
         print( "Account name is %s" % account_name )
         account_id=create_account(account_name,domain_id,api)
         domain_ids[account_name]=domain_id
@@ -315,8 +315,6 @@ if __name__ == '__main__':
             else:
                 print('ERROR: %s failed to Start' % process.name)
             
-    sys.exit()
-
     ### Loop to check the status of the processess ###
     finished_processes = []
     while len(finished_processes) < len(processes):
