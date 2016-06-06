@@ -1346,7 +1346,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         )
         return False
     nics=result['virtualmachine']['nic']
-    pprint(nics)
+    #pprint(nics)
     net_out.write('NIC 2 successfully added to the VM.\n')
 
     for nic in nics:
@@ -1356,7 +1356,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
                 'Network NIC on network %s has ID %s\n' %
                 (network_id,nic_id)
             )
-            return nic_id 
+            return nic_id
 
     net_out.write(
         'ERROR: Failed to add NIC to network. Did not find NIC on network %s\n'
@@ -1364,8 +1364,40 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         (network_id, nics),
     )
 
+def remove_nic(vm_id,nic_id,api,net_out):
+    net_out.write('Remove the nic from vm %s\n' %vm_id)
+
+    request = {
+        'virtualmachineid': vm_id,
+        'nicid': nic_id,
+    }
+    result = api.removeNicFromVirtualMachine(request)
+    ##net_out.write(result)
+    output(result)
+    net_out.write('Removing NIC 2 from VM...\n')
+
+    if result == {} or 'jobid' not in result:
+        net_out.write(
+            'ERROR: Failed job to remove NIC '
+            ' Response was %s\n' %
+            (result),
+        )
+        return False
+    result = wait_for_job(result['jobid'], api)
+    output(result)
+    if 'virtualmachine' not in result:
+        net_out.write(
+            'ERROR: Failed job to remove NIC from vm %s.'
+            ' Response was %s\n' %
+            (vm_id, result),
+        )
+        return False
+    nics=result['virtualmachine']['nic']
+    #pprint(nics)
+    net_out.write('NIC 2 successfully removed from VM.\n')
+
 def get_nic(vm_id,network_id,ip_address,api,net_out):
-    
+
     #Get NICs
     request = {
         'virtualmachineid':vm_id,
@@ -2767,9 +2799,12 @@ def get_usercontext(user_name,admin_api):
     
     #Check if the api_key exists, otherwise request them
     request = {
-        'username': user_name
+        'username': user_name,
+        'listall': True
     }
     result = admin_api.listUsers(request)
+    #pprint(result)
+
     if result == {} or 'user' not in result.keys():
         output(
             'ERROR: Failed get data for user %s'
@@ -3043,8 +3078,13 @@ def lifecycle_test(
     vm_id,
     domain_id,
     account_name,
-    api,):
-
+    api,
+    network_name2,
+    volume_name,
+    disk_offering_name,
+    volume_size,
+    ip_address2,
+    gateway2,):
 
     #Create output file
     net_out = open('out_%s' % vm_id, 'w')
@@ -3054,17 +3094,17 @@ def lifecycle_test(
     )
     net_out.write('-----------------------------------------------------\n\n')
 
-    ### First of all we gather data about the VM  an the network ###
-    request = {
-        'id': vm_id,
-    }
+    # First of all we gather data about the VM  an the network
+    request = {'id': vm_id}
     result = api.listVirtualMachines(request)
     if result == {} or 'virtualmachine' not in result:
-            print('Could not find any vm for the user matching lfv\n')
-            sys.exit()
-        virtualmachines=result['virtualmachine']
-    
-
+        print('Could not find the vm \n')
+        sys.exit()
+    virtualmachines = result['virtualmachine'][0]
+    nics = virtualmachines['nic']
+    for nic in nics:
+        if nic['isdefault'] == True:
+            network_id_ssh = nic['networkid']
 
     # Reboot VM #
     request = {'id': vm_id}
@@ -3073,35 +3113,135 @@ def lifecycle_test(
     if result == {} or 'jobid' not in result.keys():
         net_out.write(
             'ERROR: Failed to create job to reboot VM on network %s. '
-            ' Response was %s\n' % (network_id, result),
+            ' Response was {}'.format(result)
         )
-    ### Adding clean up stuff
-        delete_vm(vm_id,api,net_out)
         return False
-    net_out.write('Rebooting VM...\n')
 
+    net_out.write('Rebooting VM...\n')
     result = wait_for_job(result['jobid'], api)
 
     if result == {} or 'virtualmachine' not in result:
         net_out.write(
-            'ERROR: Failed to reboot VM on network %s.'
-            ' Response was %s\n' % (network_id, result),
+            'ERROR: Failed to reboot VM'
+            ' Response was {}\n'.format(result)
         )
-    ### Adding clean up stuff
-        delete_vm(vm_id,api,net_out)
-        delete_network(network_id,api,net_out)
+    else:
+        net_out.write('VM successfully rebooted.\n')
+
+    # Stop VM 
+    net_out.write('Stopping VM...\n')
+    stop_success = stop_vm(vm_id,api,net_out)
+
+    # Reset the password
+    net_out.write('Resetting passwort of VM...\n')
+    vm_password = reset_password(vm_id,api,net_out)
+    if vm_password == False:
+        net_out.write(
+            'ERROR: Failed to reset password'
+        )
+
+    # Start VM
+    net_out.write('Starting VM...\n')
+    start_success = start_vm(vm_id,api,net_out)
+
+    # Add additional NIC to the VM
+    network_id2 = create_network(zone_id, domain_id, account_name, network_name2, api, net_out, gateway2)
+    if network_id2 == False:
+        return False
+    nic_id2 = add_nic(vm_id,network_id2,ip_address2,api,net_out)
+    if nic_id2 == False:
+        return False
+    # We add portforwarding rules to be able to SSH to the VM directly
+    port_forwarding_data = add_portforwarding(network_id_ssh,vm_id,api,net_out)
+    ip_address = port_forwarding_data['IP']
+    public_port = port_forwarding_data['public_port']
+    portforward_id = port_forwarding_data['portforward_id']
+    logging.getLogger('paramiko').addHandler(logging.NullHandler())
+
+    # Adding extra EBS Drive
+    net_out.write('Adding the additional EBS Disk Volume...\n')
+    volume_id = create_volume(volume_name,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
+    result_attach = attach_volume(volume_id,vm_id,api,net_out)
+    result_resize = resize_volume(volume_id,volume_size,api,net_out)
+    net_out.write('Trying to format the new disk\n')
+    command = (
+        'for controller in /sys/class/scsi_host/*; '
+        'do echo "- - -"> $controller/scan; done'
+    )
+    ssh_command(command, ip_address, vm_password, public_port)
+    command = (
+        'pvcreate /dev/sdb; '
+        'vgcreate datavg /dev/sdb; '
+        'lvcreate -l 100%FREE -n datavol datavg; '
+        'mkfs -t ext4 /dev/datavg/datavol'
+    )
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+    command = (
+        'mkdir /media/volume_test; '
+        'mount /dev/datavg/datavol /media/volume_test; '
+        'touch /media/volume_test/testfile; '
+    )
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+    command = 'mount'
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+    if 'datavol' in ssh_out:
+        net_out.write(
+            'Volume formatted and mounted.\n'
+        )
+    else:
+        net_out.write(
+            'ERROR: Volume not formatted or mounted properly.\n %s \n' % ssh_out
+        )
+        return False
+    command = (
+        'touch /media/volume_test/test_file; '
+        'umount /media/volume_test; '
+        'vgexport datavg; '
+    )
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+
+    # Reboot VM #
+    request = {'id': vm_id}
+    result = api.rebootVirtualMachine(request)
+
+    if result == {} or 'jobid' not in result.keys():
+        net_out.write(
+            'ERROR: Failed to create job to reboot VM on network %s. '
+            ' Response was {}'.format(result)
+        )
         return False
 
+    net_out.write('Rebooting VM...\n')
+    result = wait_for_job(result['jobid'], api)
+
+    if result == {} or 'virtualmachine' not in result:
+        net_out.write(
+            'ERROR: Failed to reboot VM'
+            ' Response was {}\n'.format(result)
+        )
+    else:
+        net_out.write('VM successfully rebooted.\n')
+
+    # Cleanup
+    result_delete = delete_volume(volume_id,vm_id,api,net_out)
+    if result_delete == True:
+        remove_nic(vm_id,nic_id2,api,net_out)
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return True
 
 
 ################## BASIC TEST ##############################
-            
 def basic_test(
-    zone_id, 
-    network_name, 
-    template_id, 
+    zone_id,
+    network_name,
+    template_id,
     domain_id,
-    account_name, 
+    account_name,
     api,):
 
     # Create output file
@@ -3116,6 +3256,7 @@ def basic_test(
     #net_out.write('--------- CREATION ---------\n')
 
     # Create the network
+    print('\nCreating network:')
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     #print(network_id)
     if network_id == False:
@@ -3124,14 +3265,17 @@ def basic_test(
             network_name
         )
     net_out.write(
-        'Create network %s with ID %s\n' %
+        'Created network %s with ID %s\n' %
         (network_name,network_id)
     )
+    print('\nOK: Network %s with id %s created\n'% (network_name,network_id))
 
     # Deploy VM
     vm_name='%s-vm1' % network_name
 
     #print('Before Deploy VM template ID %s\n' % template_id)
+    net_out.write('Deploying VM:')
+    print('Deploying VM:')
     vm_id=deploy_vm(
         vm_name=vm_name,
         zone_id=zone_id,
@@ -3147,22 +3291,28 @@ def basic_test(
     if vm_id == False:
         return False
 
-
 #### From this point if there is an error destroy the vm and the network
 
     # Start VM
+    print('Starting VM:')
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
+        print('ERROR: VM did not start succesfully. Aborting testing and cleaning up')
     ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: VM started succesfully')
+
     # Reboot VM #
+    print('Rebooting VM:')
+    net_out.write('Rebooting VM...\n')
     request = {'id': vm_id}
     result = api.rebootVirtualMachine(request)
 
     if result == {} or 'jobid' not in result.keys():
+        print('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to create job to reboot VM on network %s. '
             ' Response was %s\n' % (network_id, result),
@@ -3170,11 +3320,11 @@ def basic_test(
     ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         return False
-    net_out.write('Rebooting VM...\n')
 
     result = wait_for_job(result['jobid'], api)
 
     if result == {} or 'virtualmachine' not in result:
+        print('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to reboot VM on network %s.'
             ' Response was %s\n' % (network_id, result),
@@ -3184,19 +3334,27 @@ def basic_test(
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: VM rebooted succesfully')
+
     # Stop VM
+    print('Rebooting VM:')
+    net_out.write('Rebooting VM...\n')
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
     ### Adding clean up stuff
+        print('ERROR: VM did not stop succesfully. Aborting testing and cleaning up')
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
 
+    print('\nOK: VM stopped succesfully')
 
     ## We rebuild the vm and try to start it 
+    print('Rebuilding VM from template')
     new_vm_password=rebuild_vm(vm_id,api,net_out)
     if new_vm_password == False:
+        print('ERROR: Problem recreating VM. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to rebuild vm\n' 
         )
@@ -3209,10 +3367,15 @@ def basic_test(
             'new vm password: %s\n' % new_vm_password
         )
 
+    print('\nOK: VM recreated succesfully')
+
+
     ### Reset the password ### 
+    print('Resetting passwort of VM:')
     net_out.write('Resetting passwort of VM...\n')
     vm_password=reset_password(vm_id,api,net_out)
     if vm_password == False:
+        print('ERROR: Failed to reset password. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to reset password' 
         )
@@ -3221,11 +3384,13 @@ def basic_test(
         delete_network(network_id,api,net_out)
         return False
     else:
-         net_out.write(
+        print('\nOK: Password of VM reset successfully')
+        net_out.write(
             'new password: %s\n' % vm_password 
         )
 
     ### Creating a volume and attaching it to the VM
+    print('Creating new data volume')
     net_out.write( 'Creating an additional volume:\n' )
     volume_name = ('%s-vol1' % network_name)
     disk_offering_name='EBS'
@@ -3233,64 +3398,89 @@ def basic_test(
     time.sleep(60)
     volume_id=create_volume(volume_name,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id == False:
+        print('ERROR: Failed to create additional volume. Aborting testing and cleaning up')
 	### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Volume created successfully')
     net_out.write(
         'Volume %s successfully created on zone %s.\n'
         % (volume_id, zone_id)
     )
 
     # Attach volumes
+    print('Attaching volume to VM')
     result_attach=attach_volume(volume_id,vm_id,api,net_out)
     if result_attach == False:
+        print('ERROR: Failed to attach additional volume. Aborting testing and cleaning up')
     ### Adding clean up stuff
         delete_volume(volume_id,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Volume attached successfully')
+
     #### At this point we call the function to remove the volume
+    print('Removing volume to VM')
     delete_volume(volume_id,vm_id,api,net_out)
     ### No error control, just calling the function
-### No need to delete the volume beyond this point 
+    ### No need to delete the volume beyond this point 
 
     # Start VM again
+    print('Starting Virtual Machine')
     start_success=start_vm(vm_id,api,net_out)
     if start_success == False:
+        print('ERROR: Failed to restart VM.  Aborting testing and cleaning up')
 	### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Virtual Machine restarted successfully')
+
     # Take VM snapshot
+    print('Taking Virtual Machine snapshot')
     vm_snapshot_id=create_vmsnapshot(vm_id,api,net_out)
     if vm_snapshot_id == False:
+        print('ERROR: Failed to create VM snapshot.  Aborting testing and cleaning up')
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Virtual Machine Snapshot successfully taken')
+
     # Delete VM snapshot
+    print('Removing Virtual Machine')
     delete_snapshot_success=delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out)
     #print('delete_snapshot_success %s\n' % delete_snapshot_success)
     if delete_snapshot_success == False:
+        print('ERROR: Failed to remove VM snapshot.  Aborting testing and cleaning up')
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Virtual Machine Snapshot successfully removed')
+
     ### Stop the VM again
+    print('Stopping Virtual Machine')
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
+        print('ERROR: Failed to stop Virtual Machine.  Aborting testing and cleaning up')
     ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
     
+    print('\nOK: Virtual Machine successfully stopped')
+
     ### Change compute offering to Tiny
+    print('Resizing Virtual Machine to smaller compute offering')
     scale_result=scale_vm(vm_id,'Tiny Instance',api,net_out)
     if scale_result == False:
+        print('ERROR: Failed to scale Virtual Machine.  Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Problem resizing VM'
         )
@@ -3299,13 +3489,19 @@ def basic_test(
         delete_network(network_id,api,net_out)
         return False
 
+    print('\nOK: Virtual Machine successfully resized')
+
     # Start VM again
+    print('Starting Virtual Machine')
     start_success=start_vm(vm_id,api,net_out)
     if start_success == False:
+        print('ERROR: Failed to start Virtual Machine.  Aborting testing and cleaning up')
     ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+
+    print('\nOK: Virtual Machine successfully stopped')
 
     ### Change compute offering to Huge
     ## skipping dynamic scale ##
@@ -3320,6 +3516,7 @@ def basic_test(
     ##   return False
 
     ### Finish testing
+    print('\nOK: Virtual Machine testing finsihed. Cleaning UP')
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
     delete_vm(vm_id,api,net_out)
     delete_network(network_id,api,net_out)
@@ -4318,8 +4515,10 @@ def template_test(
     if test:
         net_out.write(
             'Could not find cdrom in mount result'
+            'ssh out: %s\n' % ssh_out
         )
         remove_portforwarding(portforward_id,api,net_out)
+        detach_iso(vm_id2,iso_id2,api,net_out)
         delete_iso(iso_id2,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
@@ -4348,6 +4547,7 @@ def template_test(
         net_out.write(
             'Could not find cdrom in mount result'
         )
+        detach_iso(vm_id2,iso_id2,api,net_out)
         delete_iso(iso_id2,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
@@ -4356,11 +4556,9 @@ def template_test(
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
+    detach_iso(vm_id2,iso_id2,api,net_out)
     delete_iso(iso_id2,api,net_out)
     delete_template(template_id1,api,net_out)
     delete_vm(vm_id1,api,net_out)
     delete_network(network_id,api,net_out)
     return True
-
-    ### Random line
-    ### Second random line
