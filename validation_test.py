@@ -169,10 +169,14 @@ if __name__ == '__main__':
 
     #### Obtain a user context for user api call ###
     user_context=get_usercontext(user_name,admin_api)
+    if user_context is False:
+        print('Some error obtaining keys from user %s' % user_name)
+        sys.exit()
+
     if 'api_key' not in user_context:
         print('Some error obtaining keys from user %s' % user_name)
         sys.exit()
-    pprint(user_context)
+    #pprint(user_context)
 
     ### We test how to create an api object for the user
     ### We create a user apicall ###
@@ -360,25 +364,30 @@ if __name__ == '__main__':
         if result == {} or 'virtualmachine' not in result:
             print('Could not find any vm for the user matching lfv\n')
             sys.exit()
-        virtualmachines=result['virtualmachine']
+        virtualmachines = result['virtualmachine']
+        network_name2 = 'validation-net'
+        ip_address2 = '192.168.10.2'
+        gateway2 = '192.168.10.1'
+        volume_name = 'validation-volume'
+        disk_offering_name = 'EBS'
+        volume_size = '10'
         for virtualmachine in virtualmachines:
-            virtualmachine_id=virtualmachine['id']
-            process = multiprocessing.Process(target=lifecycle_test, args=(zone_id, network_name, vm_id, domain_id, account_name, api,),)
+            vm_id = virtualmachine['id']
+            process = multiprocessing.Process(target=lifecycle_test, args=(zone_id, vm_id, domain_id, account_name, api, network_name2, volume_name, disk_offering_name, volume_size, ip_address2, gateway2,),)
+            output_name='out_{}'.format(vm_id)
             process.name = process_name
             process.start()
             processes.append(process)
             if process.is_alive():
-            print(
-                '%s - %s is Started'
-                % (datetime.datetime.now(), process.name)
-            )
-        else:
-            print('ERROR: %s failed to Start' % process.name)
-            
-    else: 
+                print(
+                    '%s - %s is Started'
+                    % (datetime.datetime.now(), process.name)
+                )
+            else:
+                print('ERROR: %s failed to Start' % process.name)
+    else:
         print('Wrong test type')
         sys.exit()
-    
 
     # Perform the tests on the network we created ###
 
