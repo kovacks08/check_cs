@@ -23,9 +23,14 @@ if sys.version_info[0] == 2 and sys.version_info[1] < 7:
 import paramiko
 
 
-def output(message, success=True):
+def output(message, success=True, warning=False):
     if success:
-        print(message)
+        if warning==True:
+            print(colorama.Fore.YELLOW + message)
+            print(colorama.Fore.RESET)
+        else:
+            print(colorama.Fore.GREEN + message)
+            print(colorama.Fore.RESET)
     else:
         sys.stderr.write(colorama.Fore.YELLOW)
         sys.stderr.write('FAILURE OCCURRED\n')
@@ -44,7 +49,7 @@ def create_domain(domain_name,parent_domain_id,api):
 
 
     if mychildrendomain_result == {} or mychildrendomain_result['count'] == 0:
-        print( 'No childrendomains for parent_domain %s' % parent_domain )
+        output( 'No childrendomains for parent_domain %s' % parent_domain , warning=True)
     else:
         mychildrendomain_ids = [domain['id']
             for domain
@@ -54,7 +59,7 @@ def create_domain(domain_name,parent_domain_id,api):
             in mychildrendomain_result['domain']]
 
     if domain_name in mychildrendomain_names:
-        output('domain %s already exists' % domain_name)
+        print('domain %s already exists' % domain_name)
         domain_id=mychildrendomain_ids[mychildrendomain_names.index(domain_name)]
         return domain_id
 
@@ -80,7 +85,7 @@ def create_account(account_name,domain_id,api):
     }
     result=api.listDomains(request)
     if result == {} or 'domain' not in result:
-        print ('No domain found with id %s\n' % domain_id)
+        output ('No domain found with id %s\n' % domain_id , warning=True)
         return False
     else:
         domain=result['domain'][0]
@@ -94,7 +99,7 @@ def create_account(account_name,domain_id,api):
     }
     result=api.listAccounts(request)
     if result == {} or 'account' not in result: 
-        print('Account %s not found or does not exist\n' % account_name)
+        output('Account %s not found or does not exist\n' % account_name, warning=True)
     else:
         print('Account %s already exists\n' % account_name)
         account=result['account'][0]
@@ -112,8 +117,8 @@ def create_account(account_name,domain_id,api):
     }
     account_result = api.createAccount(request)
     if account_result == {} or 'account' not in account_result:
-        print(account_result)
-        print( "Could not create account %s" % account_name )
+        output(account_result, warning=True) 
+        output( "Could not create account %s" % account_name , warning=True)
         return False
     account_id = account_result['account']['id']
     account_user = account_result['account']['user'][0]
@@ -144,13 +149,13 @@ def create_domainandaccount(account_name,parentdomain_id,api):
     mychildrendomain_names = {}
 
     if mychildrendomain_result == {} or 'domain' not in mychildrendomain_result:
-        print( 'No childrendomains for parent_domain %s' % parentdomain_id )
+        output( 'No childrendomains for parent_domain %s' % parentdomain_id , warning=True)
     else:
         for domain in mychildrendomain_result['domain']:
             if domain['name'] == domain_name:
                 domain_id=domain['id']
-                output('Domain %s already exists' % domain_name)
-                output('Domain id: %s' % domain_id)
+                output('Domain %s already exists' % domain_name, warning=True)
+                print('Domain id: %s' % domain_id)
                 ### Get the account
                 request={
                     'name': account_name,
@@ -159,8 +164,9 @@ def create_domainandaccount(account_name,parentdomain_id,api):
                 }
                 account_result = api.listAccounts(request)
                 if account_result == {} or 'account' not in account_result:
-                    print( 'Account %s not found in existing domain %s\n' %
-                        (account_name,domain_id)
+                    output( 'Account %s not found in existing domain %s\n' %
+                        (account_name,domain_id),
+                        warning=True
                     )
                     request = {
                         'accounttype': 2,
@@ -173,7 +179,7 @@ def create_domainandaccount(account_name,parentdomain_id,api):
                     }
                     account_result = api.createAccount(request)
                     if account_result == {}:
-                        print( "Could not create user for user %s" % user_name )
+                        output( "Could not create user for user %s" % user_name ,warning=True)
                         return False
                     account_id = account_result['account']['id']
                     account_user = account_result['account']['user'][0]
@@ -193,7 +199,7 @@ def create_domainandaccount(account_name,parentdomain_id,api):
 
     domain_result = api.createDomain(request)
     if domain_result == {}:
-        print( "Could not crate domain  %s" % domain_name )
+        output( "Could not crate domain  %s" % domain_name  ,warning=True)
         print(domain_result)
         return False
     domain_id = domain_result['domain']['id']
@@ -211,7 +217,7 @@ def create_domainandaccount(account_name,parentdomain_id,api):
     account_result = api.createAccount(request)
     if account_result == {}:
         print(account_result)
-        print( "Could not create user for user %s" % user_name )
+        output( "Could not create user for user %s" % user_name  ,warning=True)
         return False
     account_id = account_result['account']['id']
     account_user = account_result['account']['user'][0]
@@ -276,7 +282,7 @@ def ssh_command(command, hostname, password, port, timeout=75):
     # Return None in case of timeout
     return ''
 
-def create_volume_fromsnap(volume_name,snapshot_id,zone_id,api,net_out):
+def create_volume_fromsnap(volume_name,snapshot_id,volume_size,zone_id,api,net_out):
     ### Send message out ###
     net_out.write(
         'Create volume: %s' %
@@ -286,7 +292,7 @@ def create_volume_fromsnap(volume_name,snapshot_id,zone_id,api,net_out):
     request = {
         'name': volume_name,
         'zoneid': zone_id,
-        'volume_size': 15,
+        'volume_size': volume_size,
         'snapshotid': snapshot_id,
     }
     result = api.createVolume(request)
@@ -536,10 +542,6 @@ def migrate_volume(volume_id,api,net_out,migrate_back):
         if pool['suitableformigration']==True:
             storage_pool_candidate_id=pool['id'] 
             storage_pool_candidate_name=pool['name'] 
-            ##print ('storage_pool_candidate_id: %s\n' % storage_pool_candidate_id)
-            ##print ('storage_pool_candidate_name: %s\n' % storage_pool_candidate_name)
-            ##print ('-------------------------------------\n')
-            ## We get the first valid result
             break
 
     if storage_pool_candidate_id=='Null':
@@ -598,8 +600,6 @@ def migrate_volume(volume_id,api,net_out,migrate_back):
             'livemigrate': 'True'
             }
 
-        ###print ("request\n")
-        ###print(request)
         result = api.migrateVolume(request)
         
         if result == {} or 'jobid' not in result.keys():
@@ -646,7 +646,6 @@ def attach_volume(volume_id,vm_id,api,net_out):
         net_out.write(
             'ERROR: Failed to create job to attach volume on VM %s. '
             ' Response was %s\n' % (vm_id, result),)
-        ### Adding clean up stuff
         return False
 
     result = wait_for_job(result['jobid'], api)
@@ -656,7 +655,6 @@ def attach_volume(volume_id,vm_id,api,net_out):
             'ERROR: Failed to attach volume on VM %s.'
             ' Response was %s\n' % (vm_id, result),
         )
-        ### Adding clean up stuff
         return False
 
     net_out.write('Waiting for volume in ready state')
@@ -794,9 +792,6 @@ def delete_volume(volume_id,vm_id,api,net_out):
         'id': volume_id,
     }
     result = api.deleteVolume(request)
-
-    ###print('Delete volume result\n')
-    ###print(result)
 
     if result=={} or 'success' not in result:
         net_out.write(
@@ -937,9 +932,7 @@ def deploy_vm_iso(
     }
     result = api.listServiceOfferings(request)
     if result == {} or 'serviceoffering' not in result:
-        output(
-            message='Could not find service offering.',
-        )
+        output( message='Could not find service offering.', warning=True)
         return False
     service_offering_id = result['serviceoffering'][0]['id']
     service_offering_name = result['serviceoffering'][0]['displaytext']
@@ -1033,9 +1026,7 @@ def deploy_vm(
     }
     result = api.listServiceOfferings(request)
     if result == {} or 'serviceoffering' not in result:
-        output(
-            message='Could not find service offering.',
-        )
+        output( message='Could not find service offering.', warning=True)
         return False
     service_offering_id = result['serviceoffering'][0]['id']
     service_offering_name = result['serviceoffering'][0]['displaytext']
@@ -1045,7 +1036,6 @@ def deploy_vm(
     )
 
     ### Get the template name ###
-    ##print('My Template ID %s\n' % template_id)
     request = {
         'templatefilter': 'executable',
         'zoneid': zone_id,
@@ -1121,9 +1111,7 @@ def scale_vm(vm_id,offering_name,api,net_out):
     result = api.listServiceOfferings(request)
 
     if result == {} or 'serviceoffering' not in result:
-        output(
-            message='Could not find service offering.',
-        )
+        output( message='Could not find service offering.', warning=True)
         return False
     service_offering_id = result['serviceoffering'][0]['id']
     service_offering_name = result['serviceoffering'][0]['displaytext']
@@ -1163,17 +1151,12 @@ def scale_vm(vm_id,offering_name,api,net_out):
         return False
     
     result = wait_for_job(result['jobid'], api)
-    ##print('Scale result\n')
-    ##pprint(result)
     if result=={} or 'virtualmachine' not in result:
         net_out.write(
             'ERROR:Failed to resize vm %s.'
             'Response was %s\n' % (vm_id, result),
         )
         return False
-
-    ###print ('service offering id we get %s\n'%  result['virtualmachine']['serviceofferingid'])
-    ###print ('service offering id we were supposed to get  %s\n'%  service_offering_id)
 
     if result['virtualmachine']['serviceofferingid']== service_offering_id:
         net_out.write(
@@ -1199,8 +1182,6 @@ def rebuild_vm(vm_id,api,net_out):
     result=api.restoreVirtualMachine(request)
 
     ### There seems to be some issue with the return value of this function ###
-    ##print('api.restoreVirtualMachine result: %s\n' % result)
-    ### Skipping validation
 
     ## We have to assume rebuild job started properly ## 
     ## We create a loop to wait for the proper status ##
@@ -1248,7 +1229,6 @@ def rebuild_vm(vm_id,api,net_out):
             'listall': 'True',
         }
         result = api.listVirtualMachines(request)
-        #print('Starting vm. Current state %s\n '% result['virtualmachine'][0]['state'])
         if result['virtualmachine'][0]['state'] == 'Ready':
             net_out.write('Volume in %s state\n' % result['volume'][0]['state'])
             return volume_id
@@ -1326,7 +1306,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
     }
     result = api.addNicToVirtualMachine(request)
     ##net_out.write(result)
-    output(result)
+    ##output(result)
     net_out.write('Adding NIC 2 to VM...\n')
 
     if result == {} or 'jobid' not in result:
@@ -1337,7 +1317,7 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         )
         return False
     result = wait_for_job(result['jobid'], api)
-    output(result)
+    ##output(result)
     if 'virtualmachine' not in result:
         net_out.write(
             'ERROR: Failed job to add NIC to vm %s.'
@@ -1346,7 +1326,6 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         )
         return False
     nics=result['virtualmachine']['nic']
-    #pprint(nics)
     net_out.write('NIC 2 successfully added to the VM.\n')
 
     for nic in nics:
@@ -1364,6 +1343,99 @@ def add_nic(vm_id,network_id,ip_address,api,net_out):
         (network_id, nics),
     )
 
+def add_secondaryip(nic_id,vm_id,ip_address,api,net_out):
+    net_out.write('Add additional IP %s to nic %s\n' % (ip_address,nic_id))
+
+    ## Listing the NICs of the virtualmachine ##
+    request = {
+        'virtualmachineid': vm_id,
+        'nicid': nic_id,
+    }
+    result=api.listNics(request)
+    if result == {} or 'nic' not in result:
+        net_out.write(
+            'ERROR: NIC not found'
+        )
+        return False
+
+    existing_nics=result['nic']
+    for nic in existing_nics:
+         net_out.write(
+            'Current IP address %s\n' % nic['ipaddress']
+         )
+         if nic['ipaddress']  == ip_address:
+            net_out.write(
+                'IP address %s already allocated' % ip_address
+            )
+            return True
+         elif 'secondaryip' in nic: 
+            for secondary_ip in nic['secondaryip']:    
+                net_out.write ('Validating secondary IP: %s\n' % secondary_ip )
+                if  secondary_ip==ip_address:  
+                    net_out.write(
+                        'IP address %s already allocated' % ip_address
+                    )
+                    return True
+
+    ## Adding the actual nic
+
+    print('Please ignore addiptonicresponse not found in response error message. Known bug ;\n)')
+
+    request = {
+        'nicid': nic_id,
+        'ipaddress': ip_address,
+    }
+    result=api.addIpToNic(request)
+    pprint(result)
+
+    ##if result == {} or 'jobid' not in result:
+        ##net_out.write(
+            ##'ERROR: Failed job to add secondary IP address to NIC '
+            ##' Response was %s\n' %
+            ##(result),
+        ##)
+        ##return False
+    ##result = wait_for_job(result['jobid'], api)
+    ##output(result)
+
+    ## We don't control the return of this API ##
+    ## Some bug in the api result ##
+    ## We create a wait loop to check the IP is successfully added ##
+    timeout=6 ## 3 minutes (6*30)
+    counter=0 ## 3 minutes (6*30)
+    while counter < timeout:
+        request = {
+            'virtualmachineid': vm_id,
+            'nicid': nic_id,
+        }
+        result=api.listNics(request)
+        if result == {} or 'nic' not in result:
+            net_out.write(
+                'ERROR: Not able to list the NICs of VM'
+            )
+            return False
+        else:
+            nics=result['nic']
+            for nic in nics:
+                net_out.write(
+                    'Validating NIC %s\n with main IP %s' % (nic['id'],nic['ipaddress'])
+                )
+                if 'secondaryip' in nic: 
+                    for secondary_ip in nic['secondaryip']:    
+                        net_out.write ('Validating secondary IP: %s\n' % secondary_ip['ipaddress']  )
+                        if  secondary_ip['ipaddress'] == ip_address:  
+                            net_out.write(
+                                'IP address %s successfully added\n' % ip_address
+                            )
+                            return True
+        time.sleep(30) 
+        counter += 1
+    ### If we reach past the counter exit 
+    net_out.write(
+        'ERROR: TimeOut. Not able to list the NICs of VM\n'
+    )
+    return False
+
 def remove_nic(vm_id,nic_id,api,net_out):
     net_out.write('Remove the nic from vm %s\n' %vm_id)
 
@@ -1373,7 +1445,7 @@ def remove_nic(vm_id,nic_id,api,net_out):
     }
     result = api.removeNicFromVirtualMachine(request)
     ##net_out.write(result)
-    output(result)
+    ##output(result)
     net_out.write('Removing NIC 2 from VM...\n')
 
     if result == {} or 'jobid' not in result:
@@ -1384,7 +1456,7 @@ def remove_nic(vm_id,nic_id,api,net_out):
         )
         return False
     result = wait_for_job(result['jobid'], api)
-    output(result)
+    ##output(result)
     if 'virtualmachine' not in result:
         net_out.write(
             'ERROR: Failed job to remove NIC from vm %s.'
@@ -1393,7 +1465,6 @@ def remove_nic(vm_id,nic_id,api,net_out):
         )
         return False
     nics=result['virtualmachine']['nic']
-    #pprint(nics)
     net_out.write('NIC 2 successfully removed from VM.\n')
 
 def get_nic(vm_id,network_id,ip_address,api,net_out):
@@ -1403,9 +1474,7 @@ def get_nic(vm_id,network_id,ip_address,api,net_out):
         'virtualmachineid':vm_id,
     }
     result = api.listNics(request)
-   
-    #print (result)
-    
+
     if result == {} or 'nic' not in result:
         net_out.write(
             'ERROR: Failed Get iis or NICS. '
@@ -1414,7 +1483,7 @@ def get_nic(vm_id,network_id,ip_address,api,net_out):
         )
         return False
     nics=result['nic']
-    
+
     for nic in nics:
         if nic['networkid']==network_id:
             nic_id=nic['id']
@@ -1429,8 +1498,6 @@ def get_nic(vm_id,network_id,ip_address,api,net_out):
         'Found NICS %s\n' %
         (network_id, nics),
     )
-    
-   
 
 
 def create_egress(network_id,api,net_out):
@@ -1450,11 +1517,11 @@ def create_egress(network_id,api,net_out):
     firewall_rules={}
 
     if result == {} or 'firewallrule' not in result:
-        egress_ids = [] 
+        egress_ids = []
         net_out.write('No FW rules found\n')
     else:
-        firewall_rules = result['firewallrule'] 
-        egress_ids = [] 
+        firewall_rules = result['firewallrule']
+        egress_ids = []
         net_out.write('FW rules found\n')
         net_out.write(firewall_rules)
 
@@ -1471,11 +1538,11 @@ def create_egress(network_id,api,net_out):
                     myegress_id = firewall_rule['id']
                     net_out.write('egress id: %s\n'  % firewall_rule['id'] )
                     egress_ids.append(firewall_rule['id'])
-                    net_out.write ( 
-                        'Firewall rule for network %s and port %s already exists \n is: %s' 
+                    net_out.write (
+                        'Firewall rule for network %s and port %s already exists \n is: %s'
                         % ( network_id, port, firewall_rule['id'] )
                     )
-                else:       
+                else:
                     request = {
                         'networkid': network_id,
                         'protocol': protocol,
@@ -1863,7 +1930,6 @@ def delete_snapshot(snapshot_id,api,net_out):
         )
         return False
     snapshot=result['snapshot'][0]
-    ##print('Trying to delete snapshot %s with ID %s\n' % (snapshot['name'],snapshot['id']))
     net_out.write(
         'Trying to delete snapshot %s with ID %s\n' % (snapshot['name'],snapshot['id'])
     )
@@ -2070,8 +2136,6 @@ def delete_template(template_id,api,net_out):
         'listall': 'True',
     }
     result = api.listTemplates(request)
-    ##print('template result\n')
-    ##print(result)
     if result == {} or 'template' not in result:
         net_out.write(
             'ERROR: Failed to find template with id %s.'
@@ -2081,7 +2145,6 @@ def delete_template(template_id,api,net_out):
     template=result['template'][0]
     template_name=result['template'][0]['name']
 
-    ##print('Trying to delete template %s with ID %s\n' % (template_name,template_id) )
     net_out.write(
         'Trying to delete template %s with ID %s\n' % (template_name,template_id)
     )
@@ -2157,7 +2220,6 @@ def attach_iso(iso_id,vm_id,api,net_out):
         net_out.write(
             'ERROR: Failed to create job to attach ISO %s to VM %s. '
             ' Response was %s\n' % (iso_id, vm_id, result),)
-        ### Adding clean up stuff
         return False
 
     result = wait_for_job(result['jobid'], api)
@@ -2167,7 +2229,6 @@ def attach_iso(iso_id,vm_id,api,net_out):
             'ERROR: Failed to attach ISO %s to VM %s.'
             ' Response was %s\n' % (iso_id, vm_id, result),
         )
-        ### Adding clean up stuff
         return False
 
     net_out.write(
@@ -2219,7 +2280,6 @@ def detach_iso(vm_id,api,net_out):
         net_out.write(
             'ERROR: Failed to create job to detach ISO from VM %s. '
             ' Response was %s\n' % (vm_id, result),)
-        ### Adding clean up stuff
         return False
 
     result = wait_for_job(result['jobid'], api)
@@ -2229,7 +2289,6 @@ def detach_iso(vm_id,api,net_out):
             'ERROR: Failed to detach ISO from VM %s.'
             ' Response was %s\n' % (iso_id, vm_id, result),
         )
-        ### Adding clean up stuff
         return False
 
     net_out.write(
@@ -2316,7 +2375,8 @@ def create_template_fromrootvol(vm_id,ostype_id,domain_id,account_name,api,net_o
     net_out.write('volume_id: %s\n' % volume_id)
 
     ### Try to create the actual template
-    testtemplatename=account_name+'-test-template'+str(random.randint(1,1000))
+    testtemplatename='%s-tpl-%s' % ( account_name, str(random.randint(1,100)) )
+    net_out.write('Template Name %s\n' % testtemplatename)
 
     request={
         'displaytext': testtemplatename,
@@ -2330,8 +2390,6 @@ def create_template_fromrootvol(vm_id,ostype_id,domain_id,account_name,api,net_o
     }
     result = api.createTemplate(request)
 
-    ##print('Create template result\n')
-    ##print(result)
 
     if result == {} or 'jobid' not in result.keys():
         net_out.write(
@@ -2383,7 +2441,8 @@ def create_template_fromsnap(snapshot_id,ostype_id,domain_id,account_name,api,ne
     ### Try to create the actual template
 
     ###testtemplatename=account_name+'-test-template'+str(random.randint(1,1000))
-    testtemplatename='%s-test-template-%s' % ( account_name, str(random.randint(1,100)) )
+    testtemplatename='%s-tpl-%s' % ( account_name, str(random.randint(1,100)) )
+    net_out.write('Template Name %s\n' % testtemplatename)
 
     request={
         'displaytext': testtemplatename,
@@ -2397,8 +2456,6 @@ def create_template_fromsnap(snapshot_id,ostype_id,domain_id,account_name,api,ne
     }
     result = api.createTemplate(request)
 
-    ##print('Create template result\n')
-    ##print(result)
 
     if result == {} or 'jobid' not in result.keys():
         net_out.write(
@@ -2408,8 +2465,6 @@ def create_template_fromsnap(snapshot_id,ostype_id,domain_id,account_name,api,ne
         )
         return False
 
-    ##print('Job to create template\n')
-    ##print(result['jobid'])
 
     result = wait_for_job(result['jobid'], api)
 
@@ -2581,6 +2636,36 @@ def delete_network(network_id,api,net_out):
         )
         return False
 
+def set_network_default(nic_id,vm_id,api,net_out,cleanup='False'):
+    net_out.write('Setting nic %s as default for VM %s\n' % (nic_id,vm_id))
+
+    request = {
+            'nicid': nic_id,
+            'virtualmachineid': vm_id,
+    }
+    result = api.updateDefaultNicForVirtualMachine(request)
+    if result == {} or 'jobid' not in result.keys():
+            net_out.write(
+                'ERROR: Failed to create job to restart network  %s. '
+                ' Response was %s\n' %
+                (network_id, result),
+            )
+            return False
+
+    result = wait_for_job(result['jobid'], api)
+
+    if result == {} or 'virtualmachine' not in result:
+        net_out.write(
+            'ERROR: Failed job to set default nic for VM. '
+            ' Response was %s\n' %
+            (result),
+        )
+        return False
+    
+    net_out.write('NIC %s successfully set as default\n' % nic_id)
+    return True
+
+
 def restart_network(network_id,api,net_out,cleanup='False'):
     net_out.write('Restarting network. Cleanu:p %s\n' %cleanup)
     net_out.write('Network ID: %s\n' % network_id)
@@ -2736,7 +2821,7 @@ def create_network(zone_id, domain_id, account_name, network_name, api, net_out,
     }
     networkoffering_result=api.listNetworkOfferings(request)
     if  networkoffering_result == {} or 'networkoffering' not in networkoffering_result:
-        print( 'No network offering PrivateWithGatewayServices found' )
+        output( 'No network offering PrivateWithGatewayServices found' , warning=True)
     networkoffering_id=networkoffering_result['networkoffering'][0]['id']
     ##output( 'Networkofferingid is %s' % networkoffering_id)
 
@@ -2755,7 +2840,7 @@ def create_network(zone_id, domain_id, account_name, network_name, api, net_out,
         for network in network_result['network']:
             if network['name']==network_name:
                 network_id=network['id']
-                output(
+                print(
                     'Network %s already exists. ID is %s\n'  %
                     (network_name, network_id)
                 )
@@ -2780,13 +2865,14 @@ def create_network(zone_id, domain_id, account_name, network_name, api, net_out,
             'ERROR: Failed to deploy  network %s. '
             ' Response was %s\n' %
             (network_name, network_result),
+            warning=True
         )
         return False
 
-    output('Deploying network %s.\n' % network_name)
+    net_out.write('Deploying network %s.\n' % network_name)
 
     network_id = network_result['network']['id']
-    output(
+    net_out.write(
         'network %s successfully deployed for domain %s.\n'
         % (network_name, domain_id),
     )
@@ -2803,21 +2889,19 @@ def get_usercontext(user_name,admin_api):
         'listall': True
     }
     result = admin_api.listUsers(request)
-    #pprint(result)
 
     if result == {} or 'user' not in result.keys():
         output(
             'ERROR: Failed get data for user %s'
             ' Response was %s\n' %
             (user_name, result),
+            warning=True
         )
         return False
     user=result['user'][0]
     if 'apikey' in user:
-        #print('Found keys for user %s' % user_name)
         user_api_key=user['apikey'] 
         user_api_secret=user['secretkey'] 
-        output('apikey %s:' % user_api_key)
     else:
         output('Keys for user %s not found' % user_name)
         output('Generating new keys')
@@ -2925,7 +3009,7 @@ def delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out):
             ) 
             return True
         
-def upload_template(template_name,zone_id,domain_id,is_public,account_name,api,net_out):
+def upload_template(template_name,template_url,zone_id,domain_id,is_public,account_name,api,net_out):
     net_out.write('Uploading template %s ...\n' % (template_name))
 
     request={}
@@ -2946,7 +3030,7 @@ def upload_template(template_name,zone_id,domain_id,is_public,account_name,api,n
         'hypervisor': 'VMWare',
         'name': template_name,
         'ostypeid': ostype_ids['CentOS'],
-        'url': 'http://10.220.2.77/centos64.ova',
+        'url': template_url,
         'zoneid': zone_id,
         'isfeatured': 'True',
         'ispublic': is_public,
@@ -2981,7 +3065,6 @@ def upload_template(template_name,zone_id,domain_id,is_public,account_name,api,n
             'templatefilter': 'self',
         }
         result = api.listTemplates(request)
-        #print(result['template'][0]['isready'])
         if str(result['template'][0]['isready']) == 'True':
             net_out.write('Template in %s state' % result['template'][0]['status'])
             return template_id
@@ -2996,7 +3079,7 @@ def upload_template(template_name,zone_id,domain_id,is_public,account_name,api,n
     return False
 
 
-def upload_iso(iso_name,bootable,zone_id,domain_id,account_name,api,net_out):
+def upload_iso(iso_name,iso_url,bootable,zone_id,domain_id,account_name,api,net_out):
     net_out.write('Uploading ISO %s ...\n' % (iso_name))
 
     request={}
@@ -3017,7 +3100,7 @@ def upload_iso(iso_name,bootable,zone_id,domain_id,account_name,api,net_out):
         'hypervisor': 'VMWare',
         'name': iso_name,
         'ostypeid': ostype_ids['CentOS'],
-        'url': 'http://10.220.2.77/CentOS-6.5-x86_64-minimal.iso',
+        'url': iso_url,
         'zoneid': zone_id,
         'isfeatured': 'True',
         'ispublic': 'False',
@@ -3051,7 +3134,6 @@ def upload_iso(iso_name,bootable,zone_id,domain_id,account_name,api,net_out):
             'isofilter': 'self',
         }
         result = api.listIsos(request)
-        #print(result['iso'][0]['isready'])
         if result['iso'][0]['isready']:
             net_out.write(
                 'ISO %s with ID %s ready: %s\n' %
@@ -3098,8 +3180,7 @@ def lifecycle_test(
     request = {'id': vm_id}
     result = api.listVirtualMachines(request)
     if result == {} or 'virtualmachine' not in result:
-        print('Could not find the vm \n')
-        sys.exit()
+        outpute('Could not find the vm \n',success=False)
     virtualmachines = result['virtualmachine'][0]
     nics = virtualmachines['nic']
     for nic in nics:
@@ -3268,13 +3349,15 @@ def basic_test(
         'Created network %s with ID %s\n' %
         (network_name,network_id)
     )
-    print('\nOK: Network %s with id %s created\n'% (network_name,network_id))
+    output('OK\n')
+    net_out.write('\nOK\n')
 
     # Deploy VM
+    net_out.write('------------- Deploying VM -------------\n')
     vm_name='%s-vm1' % network_name
 
     #print('Before Deploy VM template ID %s\n' % template_id)
-    net_out.write('Deploying VM:')
+    net_out.write('------------ Deploying VM: -------------')
     print('Deploying VM:')
     vm_id=deploy_vm(
         vm_name=vm_name,
@@ -3290,75 +3373,83 @@ def basic_test(
     )
     if vm_id == False:
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
 #### From this point if there is an error destroy the vm and the network
 
     # Start VM
+    net_out.write('------------- Starting VM -------------\n')
     print('Starting VM:')
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
-        print('ERROR: VM did not start succesfully. Aborting testing and cleaning up')
-    ### Adding clean up stuff
+        output('ERROR: VM did not start succesfully. Aborting testing and cleaning up', warning=True)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
-    print('\nOK: VM started succesfully')
 
     # Reboot VM #
+    net_out.write('------------- Rebooting VM -------------\n')
     print('Rebooting VM:')
     net_out.write('Rebooting VM...\n')
     request = {'id': vm_id}
     result = api.rebootVirtualMachine(request)
 
     if result == {} or 'jobid' not in result.keys():
-        print('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up')
+        output('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up', warning=True)
         net_out.write(
             'ERROR: Failed to create job to reboot VM on network %s. '
             ' Response was %s\n' % (network_id, result),
         )
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         return False
 
     result = wait_for_job(result['jobid'], api)
 
     if result == {} or 'virtualmachine' not in result:
-        print('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up')
+        output('ERROR: VM did not reboot succesfully. Aborting testing and cleaning up', warning=True)
         net_out.write(
             'ERROR: Failed to reboot VM on network %s.'
             ' Response was %s\n' % (network_id, result),
         )
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-
-    print('\nOK: VM rebooted succesfully')
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Stop VM
+    net_out.write('------------- Stopping VM -------------\n')
     print('Rebooting VM:')
     net_out.write('Rebooting VM...\n')
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
-    ### Adding clean up stuff
         print('ERROR: VM did not stop succesfully. Aborting testing and cleaning up')
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
 
-    print('\nOK: VM stopped succesfully')
+    ##print('\nOK: VM stopped succesfully')
 
     ## We rebuild the vm and try to start it 
     print('Rebuilding VM from template')
+    net_out.write('------------- Rebuilding VM from template -------------\n')
     new_vm_password=rebuild_vm(vm_id,api,net_out)
     if new_vm_password == False:
         print('ERROR: Problem recreating VM. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to rebuild vm\n' 
         )
-    ## Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
@@ -3366,20 +3457,21 @@ def basic_test(
         net_out.write(
             'new vm password: %s\n' % new_vm_password
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     print('\nOK: VM recreated succesfully')
 
 
     ### Reset the password ### 
-    print('Resetting passwort of VM:')
-    net_out.write('Resetting passwort of VM...\n')
+    print('Resetting password of VM:')
+    net_out.write('------------- Resetting password of VM -------------\n')
     vm_password=reset_password(vm_id,api,net_out)
     if vm_password == False:
         print('ERROR: Failed to reset password. Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Failed to reset password' 
         )
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
@@ -3388,10 +3480,12 @@ def basic_test(
         net_out.write(
             'new password: %s\n' % vm_password 
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Creating a volume and attaching it to the VM
     print('Creating new data volume')
-    net_out.write( 'Creating an additional volume:\n' )
+    net_out.write('------------- Creating new data volume -------------\n')
     volume_name = ('%s-vol1' % network_name)
     disk_offering_name='EBS'
     volume_size='10'
@@ -3399,61 +3493,79 @@ def basic_test(
     volume_id=create_volume(volume_name,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id == False:
         print('ERROR: Failed to create additional volume. Aborting testing and cleaning up')
-	### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
 
-    print('\nOK: Volume created successfully')
+    ##print('\nOK: Volume created successfully')
     net_out.write(
         'Volume %s successfully created on zone %s.\n'
         % (volume_id, zone_id)
     )
 
+    output('OK\n')
+    net_out.write('\nOK\n')
+
     # Attach volumes
     print('Attaching volume to VM')
+    net_out.write('------------- Attaching volume to VM -------------\n')
     result_attach=attach_volume(volume_id,vm_id,api,net_out)
     if result_attach == False:
         print('ERROR: Failed to attach additional volume. Aborting testing and cleaning up')
-    ### Adding clean up stuff
         delete_volume(volume_id,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-
-    print('\nOK: Volume attached successfully')
+    else:
+        output('OK\n')
+        print('\nOK: Volume attached successfully')
+        net_out.write('\nOK\n')
 
     #### At this point we call the function to remove the volume
-    print('Removing volume to VM')
-    delete_volume(volume_id,vm_id,api,net_out)
-    ### No error control, just calling the function
-    ### No need to delete the volume beyond this point 
-
-    # Start VM again
-    print('Starting Virtual Machine')
-    start_success=start_vm(vm_id,api,net_out)
-    if start_success == False:
-        print('ERROR: Failed to restart VM.  Aborting testing and cleaning up')
-	### Adding clean up stuff
+    print('Removing volume from VM')
+    net_out.write('------------- Removing volume from VM -------------\n')
+    delete_success=delete_volume(volume_id,vm_id,api,net_out)
+    if delete_success == False:
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
-    print('\nOK: Virtual Machine restarted successfully')
+    # Start VM again
+    print('Starting Virtual Machine')
+    net_out.write('------------- Starting Virtual Machine -------------\n')
+    start_success=start_vm(vm_id,api,net_out)
+    if start_success == False:
+        print('ERROR: Failed to restart VM.  Aborting testing and cleaning up')
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine restarted successfully')
+        net_out.write('\nOK\n')
+
 
     # Take VM snapshot
-    print('Taking Virtual Machine snapshot')
+    print('Taking Virtual Machine Snapshot')
+    net_out.write('------------- Taking Virtual Machine Snapshot -------------\n')
     vm_snapshot_id=create_vmsnapshot(vm_id,api,net_out)
     if vm_snapshot_id == False:
         print('ERROR: Failed to create VM snapshot.  Aborting testing and cleaning up')
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine Snapshot successfully taken')
+        net_out.write('\nOK\n')
 
-    print('\nOK: Virtual Machine Snapshot successfully taken')
 
     # Delete VM snapshot
-    print('Removing Virtual Machine')
+    print('Removing Virtual Machine Snapshot')
+    net_out.write('------------- Removing Virtual Machine Snapshot -------------\n')
     delete_snapshot_success=delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out)
     #print('delete_snapshot_success %s\n' % delete_snapshot_success)
     if delete_snapshot_success == False:
@@ -3461,47 +3573,57 @@ def basic_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-
-    print('\nOK: Virtual Machine Snapshot successfully removed')
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine Snapshot successfully removed')
+        net_out.write('\nOK\n')
 
     ### Stop the VM again
     print('Stopping Virtual Machine')
+    net_out.write('------------- Stopping Virtual Machine -------------\n')
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
         print('ERROR: Failed to stop Virtual Machine.  Aborting testing and cleaning up')
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-    
-    print('\nOK: Virtual Machine successfully stopped')
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine successfully stopped')
+        net_out.write('\nOK\n')
 
     ### Change compute offering to Tiny
     print('Resizing Virtual Machine to smaller compute offering')
+    net_out.write('------------- Resizing Virtual Machine to smaller compute offering -------------\n')
     scale_result=scale_vm(vm_id,'Tiny Instance',api,net_out)
     if scale_result == False:
         print('ERROR: Failed to scale Virtual Machine.  Aborting testing and cleaning up')
         net_out.write(
             'ERROR: Problem resizing VM'
         )
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine successfully resized')
+        net_out.write('\nOK\n')
 
-    print('\nOK: Virtual Machine successfully resized')
 
     # Start VM again
     print('Starting Virtual Machine')
+    net_out.write('------------- Starting Virtual Machine -------------\n')
     start_success=start_vm(vm_id,api,net_out)
     if start_success == False:
         print('ERROR: Failed to start Virtual Machine.  Aborting testing and cleaning up')
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK: Virtual Machine successfully started')
+        net_out.write('\nOK\n')
 
-    print('\nOK: Virtual Machine successfully stopped')
 
     ### Change compute offering to Huge
     ## skipping dynamic scale ##
@@ -3510,13 +3632,12 @@ def basic_test(
     ##    net_out.write(
     ##        'ERROR: Problem resizing VM'
     ##    )
-    ### Adding clean up stuff
     ##    ##delete_vm(vm_id,api,net_out)
     ##    delete_network(network_id,api,net_out)
     ##   return False
 
     ### Finish testing
-    print('\nOK: Virtual Machine testing finsihed. Cleaning UP')
+    output('\nOK: Virtual Machine testing finsihed. Cleaning UP')
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
     delete_vm(vm_id,api,net_out)
     delete_network(network_id,api,net_out)
@@ -3533,6 +3654,20 @@ def storage_test(
     ostype_id,
     api,):
 
+    ## Test parameters ##
+    volume_url='http://10.220.2.77/uploadvol.ova'
+    offering_name='Medium Instance'
+    disk_offering_name='EBS'
+    volume_size='10'
+    volume_size2='15'
+
+    ### Define vm_names
+    vm_name='%s-vm1' % network_name
+    volume_name1='%s-vol1' % network_name
+    volume_name2='%s-vol2' % network_name
+    volume_name3='%s-vol3' % network_name
+    volume_name4='%s-vol4' % network_name
+
     # Create output file
     net_out = open('out_%s' % network_name, 'w')
     net_out.write(
@@ -3545,6 +3680,8 @@ def storage_test(
     net_out.write('--------- CREATION ---------\n')
 
     # Create the network
+    print('\nCreating Network')
+    net_out.write('-------------Creating Network 1-------------\n')
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     ##print(network_id)
     if network_id == False:
@@ -3557,14 +3694,10 @@ def storage_test(
         (network_name,network_id)
     )
 
-    ### Define vm_names
-    vm_name='%s-vm1' % network_name
-    volume_name1='%s-vol1' % network_name
-    volume_name2='%s-vol2' % network_name
-    volume_name3='%s-vol3' % network_name
-    volume_name4='%s-vol4' % network_name
 
     # Deploy VM
+    print('\nDeploying VM1')
+    net_out.write('------------- Creating VM 1-------------\n')
     vm_id=deploy_vm(
         vm_name=vm_name,
         zone_id=zone_id,
@@ -3574,25 +3707,42 @@ def storage_test(
         net_out=net_out,
         api=api,
         template_id=template_id,
-        offering_name='Medium Instance',
+        offering_name=offering_name,
         startvm='False',
     )
     if vm_id == False:
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
 #### From this point if there is an error destroy the vm and the network
 
     # Start VM
+    print('\nStarting VM1')
+    net_out.write('------------- Starting VM 1-------------\n')
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
 ### We add portforwarding rules to be able to SSH to the VM directly ###
 
+    print('\nCreating Port Forwarding Rules')
+    net_out.write('------------- Creating Port Forwarding Rules -------------\n')
+
     port_forwarding_data=add_portforwarding(network_id,vm_id,api,net_out)
+    if port_forwarding_data == False:
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ip_address=port_forwarding_data['IP']
     public_port=port_forwarding_data['public_port']
@@ -3603,41 +3753,50 @@ def storage_test(
 
 
 
-##############################################################################################################
-
     ### Create a data volume1
-    disk_offering_name='EBS'
-    volume_size='10'
+    print('\nCreating volume1')
+    net_out.write('------------- Creating Volume 1-------------\n')
     volume_id1=create_volume(volume_name1,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id1 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
     ### Attach Volume1
+    print('\nAttaching volume1')
+    net_out.write('------------- Attaching Volume 1-------------\n')
     result_attach=attach_volume(volume_id1,vm_id,api,net_out)
     if result_attach == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id1,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Resize Volume1
-    volume_size='15'
-    result_resize=resize_volume(volume_id1,volume_size,api,net_out)
+    print('\nResizing volume1')
+    net_out.write('------------- Resizing Volume 1-------------\n')
+    result_resize=resize_volume(volume_id1,volume_size2,api,net_out)
     if result_resize == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id1,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Connect to the VM and create a file ###
+    print('\nConnecting to VM to create a file')
+    net_out.write('------------- Connecting to VM to create a file -------------\n')
     net_out.write('Trying to format the new disk\n') 
     
     # Rescan SCSI bus for discovering new attached volumes
@@ -3671,6 +3830,8 @@ def storage_test(
         net_out.write(
             'Volume formatted and mounted.\n'
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
     else:
         net_out.write(
             'ERROR: Volume not formatted or mounted properly.\n %s \n' % ssh_out
@@ -3682,6 +3843,8 @@ def storage_test(
         return False
 
     # Add a testfile and umount the disk
+    print('\nAdd a testfile and umount the disk')
+    net_out.write('------------- Add a testfile and umount the disk -------------\n')
     command = (
         'touch /media/volume_test/test_file; '
         'umount /media/volume_test; '
@@ -3692,43 +3855,61 @@ def storage_test(
 
     
     ### Snapshot Data Volume1
+    print('\nCreating Snapshot of Data Volume 1')
+    net_out.write('------------- Creating Snapshot of Data Volume 1  -------------\n')
     snapshot_id1=snapshot_volume(volume_id1,api,net_out)
     if snapshot_id1 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id1,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Create Volume from snapshot
-    volume_id2=create_volume_fromsnap(volume_name2,snapshot_id1,zone_id,api,net_out)
+    print('\nCreating Volume2 from the Snapshot')
+    net_out.write('------------- Creating Volume2 from the Snapshot -------------\n')
+    volume_id2=create_volume_fromsnap(volume_name2,snapshot_id1,volume_size,zone_id,api,net_out)
     if volume_id2 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id1,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Delete volume1 ###
+    print('\nDeleting Volume1')
+    net_out.write('------------- Deleting Volume1 -------------\n')
     result_delete=delete_volume(volume_id1,vm_id,api,net_out)
     if result_delete == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id2,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Attach volume2 ###
+    print('\nAttaching Volume2')
+    net_out.write('------------- Attaching Volume2 -------------\n')
 
     result_attach=attach_volume(volume_id2,vm_id,api,net_out)
     if result_attach == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id2,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Rescan SCSI bus for discovering new attached volumes
     command = (
@@ -3739,6 +3920,8 @@ def storage_test(
     net_out.write(ssh_out)
 
     ### Try to reimport the volume group    
+    print('\nReimporting the Volume Group datavg ')
+    net_out.write('------------- Reimporting the Volume Group datavg -------------\n')
     command = (
         'pvscan; '
         'vgimport datavg; '
@@ -3757,11 +3940,12 @@ def storage_test(
         net_out.write(
             "Volume's data appears to be OK.\n"
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
     else:
         net_out.write(
             "ERROR: Volume's data corrupted.\n"
         )
-         ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id2,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
@@ -3769,37 +3953,51 @@ def storage_test(
         return False
 
     ### Delete Volume2
+    print('\nDeleting Volume2')
+    net_out.write('------------- Deleting Volume2 -------------\n')
+
     result_delete=delete_volume(volume_id2,vm_id,api,net_out)
     if result_delete == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Upload a volume3 
     ### Define Test Volume URL
-    disk_offering_name='EBS'
-    volume_url='http://10.220.2.77/uploadvol.ova'
+    print('\nUploading Volume3')
+    net_out.write('------------- Uploading Volume3 -------------\n')
+    net_out.write('Volume URL: %s' % volume_url)
     volume_id3=upload_volume(volume_name3,volume_url,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id3 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Attach Volume3
+    print('\nAttaching Volume3')
+    net_out.write('------------- Attaching Volume3 -------------\n')
     result_attach=attach_volume(volume_id3,vm_id,api,net_out)
     if result_attach == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id3,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Verify we can access the data in the disk ###
+    print('\nVerifying data on Volume3')
+    net_out.write('------------- Verifying data on Volume3 -------------\n')
     command = (
         'for controller in /sys/class/scsi_host/*; '
         'do echo "- - -"> $controller/scan; done '
@@ -3833,6 +4031,8 @@ def storage_test(
             'Prompted: %s\n'
             % ssh_out,
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     command = (
         'umount /mnt/upload; '
@@ -3841,29 +4041,48 @@ def storage_test(
     ssh_out = ssh_command(command, ip_address, vm_password, public_port)
 
     ### Delete Volume3
-    delete_volume(volume_id3,vm_id,api,net_out)
-    ### We don't error control this
+    print('\nDeleting Volume3')
+    net_out.write('------------- Deleting Volume3 -------------\n')
+    delete_success=delete_volume(volume_id3,vm_id,api,net_out)
+    if delete_success == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Snapshot root volume
+    print('\nTaking Snapshot of root volume')
+    net_out.write('------------- Taking snapshot of root volume -------------\n')
     rootvol_snapshot_id=snapshot_rootvol(vm_id,api,net_out)
     if rootvol_snapshot_id == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Create Template from snapshot
+    print('\nCreating Template from Snapshot of Root Volume')
+    net_out.write('------------- Creating Template From Snapshot of Root Volume -------------\n')
     rootvol_template_id1=create_template_fromsnap(rootvol_snapshot_id,ostype_id,domain_id,account_name,api,net_out)
     if rootvol_template_id1 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-    net_out.write('rootvol_template_id1 is %s\n' % rootvol_template_id1)
+    else:
+        output('OK\n')
+        net_out.write('rootvol_template_id1 is %s\n' % rootvol_template_id1)
+        net_out.write('\nOK\n')
     
     ### Deploy a VM from this template
+    print('\nDeploying Virtual Machine 2 from Template of the Snapshot of Root Volume')
+    net_out.write('------------- Deploying Virtual Machine 2 from Template of the Snapshot of Root Volume -------------\n')
     rootvol_vm_name1='rootvm1-'+vm_name
     rootvol_vm_id1=deploy_vm(
         vm_name=rootvol_vm_name1,
@@ -3884,8 +4103,13 @@ def storage_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Start VM
+    print('\nStarting Virtual Machine 2')
+    net_out.write('------------- Starting Virtual Machine 2 -------------\n')
     rootvol_vm_password1=start_vm(rootvol_vm_id1,api,net_out)
     if rootvol_vm_password1 == False:
         delete_vm(rootvol_vm_id1,api,net_out)
@@ -3895,34 +4119,71 @@ def storage_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Delete the VM from the tests
-    delete_vm(rootvol_vm_id1,api,net_out) 
-    delete_template(rootvol_template_id1,api,net_out)
-    delete_snapshot(rootvol_snapshot_id,api,net_out)
-    ### We don't error control the deletion of this components ###
+    print('\n Deleting Virtual Machine 2')
+    net_out.write('------------- Deleting Virtual Machine 2 -------------\n')
+    delete_result=delete_vm(rootvol_vm_id1,api,net_out) 
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
-    ### Stop the main VM 
+    print('\n Deleting Template from Snapshot of Root Volume')
+    net_out.write('------------- Deleting Template from Snapshot of Root Volume -------------\n')
+    delete_result=delete_template(rootvol_template_id1,api,net_out)
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    print('\n Deleting Snapshot of Root Volume')
+    net_out.write('------------- Deleting Snapshot of Root Volume -------------\n')
+    delete_result=delete_snapshot(rootvol_snapshot_id,api,net_out)
+    if delete_result == result_delete==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Stop VM1
+    print('\n Stopping Virtual Machine 1')
+    net_out.write('------------- Stopping Virtual Machine 1 -------------\n')
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Create template from rootvol directly ###
-    ### Create Template from snapshot
+    print('\n Creating Template from Root Volume')
+    net_out.write('------------- Creating Template from Root Volume -------------\n')
     rootvol_template_id2=create_template_fromrootvol(vm_id,ostype_id,domain_id,account_name,api,net_out)
     if rootvol_template_id2 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
-    net_out.write('rootvol_template_id2 is %s\n' % rootvol_template_id2)
+    else:
+        output('OK\n')
+        net_out.write('rootvol_template_id2 is %s\n' % rootvol_template_id2)
+        net_out.write('\nOK\n')
 
     ### Deploy a VM from this template
+    print('\n Deploying Virtual Machine 3 from Root Volume Template')
+    net_out.write('------------- Deploying Virtual Machine 3 from Root Volume Template -------------\n')
     rootvol_vm_name2='rootvm2-'+vm_name
     rootvol_vm_id2=deploy_vm(
         vm_name=rootvol_vm_name2,
@@ -3942,8 +4203,13 @@ def storage_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Start VM
+    print('\n Starting Virtual Machine 3')
+    net_out.write('------------- Starting Virtual Machine 3 -------------\n')
     rootvol_vm_password2=start_vm(rootvol_vm_id2,api,net_out)
     if rootvol_vm_password2 == False:
         delete_vm(rootvol_vm_id2,api,net_out)
@@ -3952,34 +4218,63 @@ def storage_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Delete the VM from the tests
-    delete_vm(rootvol_vm_id2,api,net_out)
-    delete_template(rootvol_template_id2,api,net_out)
+    print('\n Deleting Virtual Machine 2')
+    net_out.write('------------- Deleting Virtual Machine 2 -------------\n')
+    delete_result=delete_vm(rootvol_vm_id2,api,net_out) 
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    print('\n Deleting Template from Root Volume')
+    net_out.write('------------- Deleting Template from Root Volume -------------\n')
+    delete_result=delete_template(rootvol_template_id2,api,net_out)
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
 
     ### Create a data volume4
-    disk_offering_name='EBS'
-    volume_size='10'
+    print('\n Creating Volume 4 for recurrent Snapshots')
+    net_out.write('------------- Creating Volume 4 for recurrent Snapshots -------------\n')
     volume_id4=create_volume(volume_name4,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id4 == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Attach Volume4
+    print('\n Attaching Volume 4')
+    net_out.write('------------- Attaching Volume 4 -------------\n')
     result_attach=attach_volume(volume_id4,vm_id,api,net_out)
     if result_attach == False:
-    ### Adding clean up stuff
         remove_portforwarding(portforward_id,api,net_out)
         delete_volume(volume_id1,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Create some snapshot schedules
     ### Create hourly snapshot schedule
+    print('\n Creating Hourly Snapshot Policy for Volume 4')
+    net_out.write('------------- Creating Hourly Snapshot Policy for Volume 4 -------------\n')
     schedule='HOURLY'
     hourly_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
     if hourly_snapshotpolicy_id == False:
@@ -3989,9 +4284,13 @@ def storage_test(
         delete_network(network_id,api,net_out)
         return False
     else:
-         net_out.write('Hourly snapshot policy %s\n' % hourly_snapshotpolicy_id)           
+        output('OK\n')
+        net_out.write('Hourly snapshot policy %s\n' % hourly_snapshotpolicy_id)           
+        net_out.write('\nOK\n')
 
     ### Create daily snapshot schedule
+    print('\n Creating Daily Snapshot Policy for Volume 4')
+    net_out.write('------------- Creating Daily Snapshot Policy for Volume 4 -------------\n')
     schedule='DAILY'
     daily_snapshotpolicy_id=create_snapshot_schedule(volume_id4,schedule,api,net_out)
     if daily_snapshotpolicy_id == False:
@@ -4001,14 +4300,22 @@ def storage_test(
         delete_network(network_id,api,net_out)
         return False
     else:
+        output('OK\n')
+        net_out.write('\nOK\n')
         net_out.write('Daily snapshot policy %s\n' % daily_snapshotpolicy_id)
 
     ### Finish testing
+    print('Finished testing. OK. The following components stay created:\n')
+    print('Virtual machine %s %s\n' % (vm_name,vm_id))
+    print('Network %s %s\n' % (network_name,network_id))
+    print('Volume with snapshots %s %s\n' % (volume_name4,volume_id4))
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
     net_out.write('-------------Finished testing. Network1,VM and volume4 stay behind -------------\n')
+    net_out.write('Virtual machine %s %s\n' % (vm_name,vm_id))
+    net_out.write('Network %s %s\n' % (network_name,network_id))
+    net_out.write('Volume with snapshots %s %s\n' % (volume_name4,volume_id4))
     remove_portforwarding(portforward_id,api,net_out)
     return True
-
 
 ################### VALIDATE SNAPSHOT POLICY ###########
 
@@ -4161,8 +4468,9 @@ def network_test(
     net_out.write('--------- CREATION ---------\n')
 
     # Create the network
+    print('\nCreating network 1')
+    net_out.write('-------------Creating Network 1-------------\n')
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
-    ##print(network_id)
     if network_id == False:
         net_out.write(
             'ERROR: Failed to create network %s' %
@@ -4172,11 +4480,14 @@ def network_test(
         'Create network %s with ID %s\n' %
         (network_name,network_id)
     )
+    net_out.write('\nOK\n')
 
     ### Define vm_names
     vm_name='%s-vm1' % network_name
 
     # Deploy VM
+    print('\nCreating VM 1')
+    net_out.write('-------------Creating VM 1-------------\n')
     vm_id=deploy_vm(
         vm_name=vm_name,
         zone_id=zone_id,
@@ -4192,22 +4503,31 @@ def network_test(
     )
     if vm_id == False:
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Start VM
+    print('\nStarting VM 1')
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
-    ### Adding clean up stuff
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
     ### We add portforwarding rules to be able to SSH to the VM directly ###
-
+    net_out.write('------------- Adding SSH port forwarding and firewall rules for VM 1-------------\n')
+    print('\nAdding SSH port forwarding and firewall rules for VM 1')
     port_forwarding_data=add_portforwarding(network_id,vm_id,api,net_out)
     if  port_forwarding_data == False:
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
         
     ip_address=port_forwarding_data['IP']
     public_port=port_forwarding_data['public_port']
@@ -4217,6 +4537,7 @@ def network_test(
     logging.getLogger('paramiko').addHandler(logging.NullHandler())
 
     ### We create the fw egress rules for port 80 and 53
+    print('\nCreating egress rules for VM 1')
 
     egress_ids=create_egress(network_id,api,net_out)
     if egress_ids == False:
@@ -4224,8 +4545,13 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Acquire a public IP
+    net_out.write('------------- Acquiring new IP and adding static NAT-------------\n')
+    print('\nAdding static NAT to VM 1')
     ipaddress_id=get_public_ip(network_id,api,net_out) 
     if ipaddress_id == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -4233,6 +4559,8 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
 
     ### Create a Static NAT from the public IP to the selected VM
     nat_success=enable_nat(ipaddress_id,vm_id,network_id,api,net_out)
@@ -4243,10 +4571,15 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Add firewall rules ###
 
     ### fwrule_id=add_firewall_rule(ipaddress_id,network_id,protocol,cidr_list,start_port,end_port,api,net_out)
+    print('\nAdding additional FW rules for NAT IP')
+    net_out.write('------------- Adding additional FW rules for NAT IP -------------\n')
     fwrule_id=add_firewall_rule(ipaddress_id,network_id,'TCP','0.0.0.0/0','22000','22000',api,net_out)
     if fwrule_id == False:
         disable_nat(ipaddress_id,api,net_out)
@@ -4256,8 +4589,13 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Remove Firewall rule
+    print('\nRemoving additional FW rules for NAT IP')
+    net_out.write('------------- Removing additional FW rules for NAT IP -------------\n')
     success_delete_fwrule=delete_firewall_rule(fwrule_id,api,net_out)
     if success_delete_fwrule == False:
         disable_nat(ipaddress_id,api,net_out)
@@ -4267,8 +4605,13 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
     ### Disable NAT
+    print('\nRemoving statinc NAT`')
+    net_out.write('------------- Removing NAT IP -------------\n')
     success_disable_nat=disable_nat(ipaddress_id,api,net_out)
     if success_disable_nat == False:
         release_public_ip(ipaddress_id,network_id,api,net_out)
@@ -4277,6 +4620,9 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Release Public IP
     success_release_ip=release_public_ip(ipaddress_id,network_id,api,net_out)
@@ -4286,10 +4632,15 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Still need to test second Network ###
 
     ## Create secondary network
+    net_out.write('------------- Creating Network 2 -------------\n')
+    print('\nCreating network 2')
     network_name2=network_name+'-aux' 
     network_id2=create_network(zone_id, domain_id, account_name, network_name2, api, net_out, gateway='192.168.10.1')
     if network_id2 == False:
@@ -4298,6 +4649,9 @@ def network_test(
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Get the current NIC ID
     nic_id1=get_nic(vm_id,network_id,ip_address,api,net_out)
@@ -4308,8 +4662,13 @@ def network_test(
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Add additional NIC to the VM ###
+    net_out.write('------------- Creating NIC on Network 2 -------------\n')
+    print('\nAdding NIC on network 2 to Virtual machine 1')
     ip_address2='192.168.10.2'
     nic_id2=add_nic(vm_id,network_id2,ip_address2,api,net_out)
     if nic_id2 == False:
@@ -4319,8 +4678,13 @@ def network_test(
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Restart network 1 without cleanup ###
+    net_out.write('------------- Restarting Network 1. No cleanup  -------------\n')
+    print('\nReseting network 1')
     restart_success=restart_network(network_id,api,net_out,cleanup='False')
     if restart_success == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -4329,8 +4693,13 @@ def network_test(
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
     ### Restart network 2 with cleanup ###
+    net_out.write('------------- Restarting Network 2. With cleanup  -------------\n')
+    print('\nRestarting network 2 with cleanup (recreate Virtual Router)')
     restart_success=restart_network(network_id2,api,net_out,cleanup='True')
     if restart_success == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -4339,14 +4708,78 @@ def network_test(
         delete_network(network_id,api,net_out)
         delete_network(network_id2,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
+    ### Set network 2 as default
+    net_out.write('------------- Setting nic on network 2 as default nic  -------------\n')
+    print('\nSetting nic on network 2 as default nic')
+    default_success=set_network_default(nic_id2,vm_id,api,net_out,cleanup='False')
+    if default_success == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Remove nic1
+    net_out.write('------------- Removing nic on network 1 -------------\n')
+    print('\nRemoving nic on network 1')
+    net_out.write('------------- Removing egress rules -------------\n')
+    remove_success=remove_portforwarding(portforward_id,api,net_out)
+    if remove_success == False:
+        remove_egress(egress_ids,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return False
+    else:
+        net_out.write('\nOK\n')
+
+    net_out.write('------------- Removing egress rules -------------\n')
+    remove_success=remove_egress(egress_ids,api,net_out)
+    if remove_success == False:
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return False
+    else:
+        net_out.write('\nOK\n')
+
+    remove_success=remove_nic(vm_id,nic_id1,api,net_out)
+    if remove_success == False:
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Add secondary IP to nic 2
+    net_out.write('------------- Adding secondary IP to network 2 -------------\n')
+    print('\nAdding secondary IP to network 2')
+    secondary_success=add_secondaryip(nic_id2,vm_id,'192.168.10.111',api,net_out)
+    if secondary_success == False:
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        delete_network(network_id2,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Finish testing
+    print('\nOK: Network testing finished OK')
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
-    remove_portforwarding(portforward_id,api,net_out)
-    remove_egress(egress_ids,api,net_out)
     delete_vm(vm_id,api,net_out)
     delete_network(network_id,api,net_out)
+    delete_network(network_id2,api,net_out)
     return True
 
 
@@ -4359,7 +4792,19 @@ def template_test(
     domain_id,
     account_name,
     ostype_id,
+    iso_url,
+    template_url,
     api,):
+
+    ### Define names and settings ###
+    template_url1=template_url
+    iso_url1=iso_url
+    iso_url2=iso_url
+    vm_name1='%s-vm1' % network_name
+    vm_name2='%s-vm2' % network_name
+    template_name='%s-template1' % network_name
+    iso_name1='%s-iso1' % network_name
+    iso_name2='%s-iso2' % network_name
 
     # Create output file
     net_out = open('out_%s' % network_name, 'w')
@@ -4373,6 +4818,8 @@ def template_test(
     net_out.write('--------- CREATION ---------\n')
 
     # Create the network
+    net_out.write('------------- Creating Network -------------\n')
+    print('\nCreating Network') 
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     ##print(network_id)
     if network_id == False:
@@ -4385,22 +4832,23 @@ def template_test(
         (network_name,network_id)
     )
 
-    ### Define names ###
-    vm_name1='%s-vm1' % network_name
-    vm_name2='%s-vm2' % network_name
-    template_name='%s-template1' % network_name
-    iso_name1='%s-iso1' % network_name
-    iso_name2='%s-iso2' % network_name
 
     ### Upload ISO1 ###
+    net_out.write('------------- Uploading ISO1 -------------\n')
+    print('\nUploading ISO1') 
     bootable='True'
-    iso_id1=upload_iso(iso_name1,bootable,zone_id,domain_id,account_name,api,net_out)
+    iso_id1=upload_iso(iso_name1,iso_url1,bootable,zone_id,domain_id,account_name,api,net_out)
     if iso_id1 == False:
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Skip deploying vm from ISO ###
     ### Deploy VM from ISO1 ###
+    net_out.write('------------- Deploying Virtual Machine from ISO1 -------------\n')
+    print('\nDeploying Virtual Machine from ISO1') 
     vm_id2=deploy_vm_iso(
         vm_name2,
         zone_id,
@@ -4413,40 +4861,75 @@ def template_test(
         disk_offering_name='Small',
         offering_name='Medium Instance',
         startvm='False')
+    if vm_id2 == False:
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Start VM
+    net_out.write('------------- Starting Virtual Machine from ISO1 -------------\n')
+    print('\nStarting Virtual Machine from ISO1') 
     vm_start_result=start_vm(vm_id2,api,net_out)
     if vm_start_result == False:
-    ### Adding clean up stuff
         delete_vm(vm_id2,api,net_out)
         delete_iso(iso_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
     elif  vm_start_result == True:
-        output('vm2 started successfully')     
+        net_out.write('vm2 started successfully')     
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Stop VM
+    net_out.write('------------- Stopping Virtual Machine from ISO1 -------------\n')
+    print('\nStopping Virtual Machine from ISO1') 
     vm_stop_result=stop_vm(vm_id2,api,net_out)
     if vm_stop_result == False:
-    ### Adding clean up stuff
         delete_vm(vm_id2,api,net_out)
         delete_iso(iso_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
     elif  vm_start_result == True:
-        output('vm2 stopped successfully')
+        output('OK\n')
+        net_out.write('vm2 stopped successfully')
+        net_out.write('\nOK\n')
 
     ### We clean_up the first test ###
-    delete_vm(vm_id2,api,net_out)
-    delete_iso(iso_id1,api,net_out)
+    net_out.write('------------- Deleting Virtual Machine from ISO1 -------------\n')
+    print('\nDeleting Virtual Machine from ISO1') 
+    delete_result=delete_vm(vm_id2,api,net_out)
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    net_out.write('------------- Deleting  ISO1 -------------\n')
+    print('\nDeleting ISO1') 
+    delete_result=delete_iso(iso_id1,api,net_out)
+    if delete_result==False:
+        net_out.write('Error deleting VM2')
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
     
     ### Upload template1 (not public)###
-    template_id1=upload_template(template_name,zone_id,domain_id,'False',account_name,api,net_out)
+    net_out.write('------------- Uploading Template1 -------------\n')
+    print('\nUploading Template1') 
+    template_id1=upload_template(template_name,template_url1,zone_id,domain_id,'False',account_name,api,net_out)
     if template_id1==False:
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Deploy the firt vm_id
+    net_out.write('------------- Deploying Virtual Machine from Template1 -------------\n')
+    print('\nDeploying Virtual Machine from Template1')
     vm_id1=deploy_vm(
         vm_name=vm_name1,
         zone_id=zone_id,
@@ -4463,26 +4946,37 @@ def template_test(
         delete_template(template_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False 
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     # Start VM
+    net_out.write('------------- Starting Virtual Machine from Template1 -------------\n')
+    print('\nStarting Virtual Machine from Template1')
     vm_password=start_vm(vm_id1,api,net_out)
     if vm_password == False:
-    ### Adding clean up stuff
         delete_vm(vm_id1,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_network(network_id,api,net_out)
-    
+
     ### Upload ISO2 ###
+    net_out.write('------------- Uploading ISO2 -------------\n')
+    print('\nUploading ISO2')
     bootable='False'
-    iso_id2=upload_iso(iso_name2,bootable,zone_id,domain_id,account_name,api,net_out)
+    iso_id2=upload_iso(iso_name2,iso_url2,bootable,zone_id,domain_id,account_name,api,net_out)
     if iso_id2 == False:
         delete_iso(iso_id2,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Attach ISO to vm ###
+    net_out.write('------------- Attaching ISO2 to Virtual Machine -------------\n')
+    print('\nAttaching ISO2 to Virtual Machine')
     attach_result=attach_iso(iso_id2,vm_id1,api,net_out)
     if attach_result == False:
         delete_iso(iso_id2,api,net_out)
@@ -4490,9 +4984,23 @@ def template_test(
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Prepare Portforwarding Rules ###
+    net_out.write('------------- Adding SSH Port Forwarding to  Virtual Machine -------------\n')
+    print('\nAdding SSH Port Forwarding to Virtual Machine')
     port_forwarding_data=add_portforwarding(network_id,vm_id1,api,net_out)
+    if  port_forwarding_data == False:
+        delete_iso(iso_id2,api,net_out)
+        delete_template(template_id1,api,net_out)
+        delete_vm(vm_id1,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ip_address=port_forwarding_data['IP']
     public_port=port_forwarding_data['public_port']
@@ -4503,6 +5011,8 @@ def template_test(
 
 
     ### We actually test mounting the ISO
+    net_out.write('------------- Trying to mount the ISO From the OS -------------\n')
+    print('\nTrying to mount the ISO From the OS')
     command = (
         'mkdir /mnt/cdrom; '
         'mount /dev/cdrom1 /mnt/cdrom; '
@@ -4518,7 +5028,7 @@ def template_test(
             'ssh out: %s\n' % ssh_out
         )
         remove_portforwarding(portforward_id,api,net_out)
-        detach_iso(vm_id2,iso_id2,api,net_out)
+        detach_iso(vm_id2,api,net_out)
         delete_iso(iso_id2,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
@@ -4530,33 +5040,53 @@ def template_test(
             'Prompted: %s\n'
             % ssh_out,
         )
+        output('OK\n')
+        net_out.write('\nOK\n')
 
 
     ### We umount ISO
+    net_out.write('------------- Trying to umount the ISO From the OS -------------\n')
+    print('\nTrying to umount the ISO From the OS')
     command = (
         'umount /mnt/cdrom'
     )
     ssh_out = ssh_command(command, ip_address, vm_password, public_port)
 
     ### At this stage we remove the port forwarding ###
-    remove_portforwarding(portforward_id,api,net_out)
-    ### We don't error control ### 
-
-    result_detach=detach_iso(vm_id1,api,net_out)
-    if result_detach==False:
-        net_out.write(
-            'Could not find cdrom in mount result'
-        )
-        detach_iso(vm_id2,iso_id2,api,net_out)
+    net_out.write('------------- Removing Port Forwarding Rules -------------\n')
+    print('\nRemoving Port Forwarding Rules')
+    remove_success=remove_portforwarding(portforward_id,api,net_out)
+    if remove_success == False:
+        detach_iso(vm_id2,api,net_out)
         delete_iso(iso_id2,api,net_out)
         delete_template(template_id1,api,net_out)
         delete_vm(vm_id1,api,net_out)
         delete_network(network_id,api,net_out)
         return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    net_out.write('------------- Trying to detach the ISO From the OS -------------\n')
+    print('\nTrying to detach the ISO From the OS')
+    result_detach=detach_iso(vm_id1,api,net_out)
+    if result_detach==False:
+        net_out.write(
+            'Could not find cdrom in mount result'
+        )
+        delete_iso(iso_id2,api,net_out)
+        delete_template(template_id1,api,net_out)
+        delete_vm(vm_id1,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
-    detach_iso(vm_id2,iso_id2,api,net_out)
+    print('-------------Finished testing. Cleaning UP ...-------------\n')
+    detach_iso(vm_id2,api,net_out)
     delete_iso(iso_id2,api,net_out)
     delete_template(template_id1,api,net_out)
     delete_vm(vm_id1,api,net_out)
