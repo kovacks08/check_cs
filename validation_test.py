@@ -30,7 +30,6 @@ if __name__ == '__main__':
     # Prepare to do pretty colours on output
     colorama.init()
 
-    # ### Determine the zone ### #
 
     # List available ZOnes
     request = {}
@@ -97,6 +96,22 @@ if __name__ == '__main__':
         help='Type of test: basic,network,storage,templates,snapshot_policy,lifecycle',
     )
 
+    parser.add_argument(
+        '-i', '--iso_url',
+        dest='iso_url',
+        type=str,
+        default='http://10.220.2.77/CentOS-6.5-x86_64-minimal.iso',
+        help='ISO URL for upload test',
+    )
+
+    parser.add_argument(
+        '-u', '--template_url',
+        dest='template_url',
+        type=str,
+        default='http://10.220.2.77/centos64.ova',
+        help='Template URL for upload test',
+    )
+
     # Assign parsed arguments
     args = parser.parse_args()
     zone_name = args.zone_name
@@ -104,7 +119,8 @@ if __name__ == '__main__':
     domain_name = args.domain_name
     account_name = args.account_name
     test_type = args.test_type
-
+    iso_url = args.iso_url
+    template_url = args.template_url
 
     ### Obtain the domain id ###
 
@@ -170,12 +186,11 @@ if __name__ == '__main__':
     #### Obtain a user context for user api call ###
     user_context=get_usercontext(user_name,admin_api)
     if user_context is False:
-        print('Some error obtaining keys from user %s' % user_name)
-        sys.exit()
+        output('Some error obtaining keys from user %s' % user_name, success=False)
 
     if 'api_key' not in user_context:
-        print('Some error obtaining keys from user %s' % user_name)
-        sys.exit()
+        output('Some error obtaining keys from user %s' % user_name, success=False)
+
     #pprint(user_context)
 
     ### We test how to create an api object for the user
@@ -209,12 +224,12 @@ if __name__ == '__main__':
         if template['name'] == template_name:
             template_id = template['id']
             ostype_id = template['ostypeid']
-            output('template_id %s\n' % template_id)
             break
     if template_id is None:
-        sys.stderr.write(
+        output(
             'The template is not available in the selected zone.\n'
-            'The following templates are available:\n'
+            'The following templates are available:\n',
+            success=False
         )
         for template in temp_result['template']:
             print('Found the following templates')
@@ -245,23 +260,22 @@ if __name__ == '__main__':
     
     user_result = api.listUsers(request)
     if user_result == {} or user_result['count'] == 0 :
-        print( 'Username %s not found in existing domain %s\n' %
-            (user_name,domain_id)
-            )
+        output( 'Username %s not found in existing domain %s\n' %
+            (user_name,domain_id), 
+            success = False
+        )
         sys.exit()
 
     user_id=user_result['user'][0]['id']
     account_result = api.listAccounts(request)
     if account_result == {} or account_result['count'] == 0:
-        print( 'Username %s not found in existing domain %s\n' %
-            (user_name,domain_id)
+        output( 'Username %s not found in existing domain %s\n' %
+            (user_name,domain_id),
+            success = False
         )
-        sys.exit()
     account_id=account_result['account'][0]['id']
 
-    output(
-        message='Using template %s with ID: %s' % (template_name, template_id)
-    )
+    print('Using template %s with ID: %s' % (template_name, template_id))
 
     request = {
         'listall': 'True',  
@@ -276,8 +290,8 @@ if __name__ == '__main__':
     service_offering_id = result['serviceoffering'][0]['id']
     service_offering_name = result['serviceoffering'][0]['displaytext']
 
-    output(
-        message='Using service offering %s with ID %s\n' %
+    print(
+        'Using service offering %s with ID %s\n' %
         (service_offering_name, service_offering_id),
     )
 
@@ -328,7 +342,7 @@ if __name__ == '__main__':
         else:
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'template':
-        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
+        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, api,),)
         output_name='out_%s' % network_name
         process.name = process_name
         process.start()
