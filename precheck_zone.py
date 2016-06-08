@@ -35,11 +35,14 @@ class Parser:
         self.zone_name= self.args.zone_name
         self.config_file= self.args.config_file
 
-def output(message, success=True):
+def output(message, success=True, warning=False):
     if success:
-        print(colorama.Fore.WHITE + message)
-    elif success=='relative':
-        print(colorama.Fore.WHITE + message)
+        if warning:
+            print(colorama.Fore.YELLOW + message)
+            print(colorama.Fore.RESET)
+        else:
+            print(colorama.Fore.GREEN + message)
+            print(colorama.Fore.RESET)
     else:
         sys.stderr.write(colorama.Fore.YELLOW)
         sys.stderr.write('FAILURE OCCURRED\n')
@@ -93,81 +96,117 @@ if __name__ == '__main__':
         )
 
     ## Checking for the PrivateWithGatewayServices Network offering ##
-    networkoffering_name='PrivateWithGatewayServices'
+
+    ##networkoffering_names={'PrivateWithGatewayServices','IPAC/IPVPN','Unmanaged')}
+
+    ###networkoffering_name='PrivateWithGatewayServices'
 
     request = {
-    'name': networkoffering_name
+    ## 'name': networkoffering_name
     }
 
     networkoffering_result=api.listNetworkOfferings(request)
     if  networkoffering_result == {} or networkoffering_result['count'] == 0:
-        output( 'No network offering PrivateWithGatewayServices found', success='relative' )
+        output( 'No network offerings found', warning=True )
+    existing_networkofferings=networkoffering_result['networkoffering']
+    existing_networkoffering_names=[]
+    existing_networkoffering_ids={}
+    for networkoffering in existing_networkofferings:
+        networkoffering_name=networkoffering['name']
+        existing_networkoffering_names.append(networkoffering_name)
+        existing_networkoffering_ids[networkoffering_name]=networkoffering['id']
 
-        ### Placeholder # In case offerintg does not exists create it ###
-        ### Let's create the network offering
+    networkoffering_requests={}
+    networkoffering_requests['PrivateWithGatewayServices']={
+        'conservemode': 'True',
+        'displaytext': 'PrivateWithGatewayServices',
+        'egressdefaultpolicy': 'False',
+        'forvpc': 'False',
+        'guestiptype': 'Isolated',
+        'isdefault': 'True',
+        'ispersistent': 'False',
+        'supportedServices': "Vpn,Dhcp,Dns,Firewall,Lb,UserData,SourceNat,StaticNat,PortForwarding",
+        "serviceProviderList[0].service": 'Vpn',
+        "serviceProviderList[0].provider": 'VirtualRouter',
+        "serviceProviderList[1].service": 'Dhcp',
+        "serviceProviderList[1].provider": 'VirtualRouter',
+        "serviceProviderList[2].service": 'Dns',
+        "serviceProviderList[2].provider": 'VirtualRouter',
+        "serviceProviderList[3].service": 'Firewall',
+        "serviceProviderList[3].provider": 'VirtualRouter',
+        "serviceProviderList[4].service": 'Lb',
+        "serviceProviderList[4].provider": 'VirtualRouter',
+        "serviceProviderList[5].service": 'UserData',
+        "serviceProviderList[5].provider": 'VirtualRouter',
+        "serviceProviderList[6].service": 'SourceNat',
+        "serviceProviderList[6].provider": 'VirtualRouter',
+        "serviceProviderList[7].service": 'StaticNat',
+        "serviceProviderList[7].provider": 'VirtualRouter',
+        "serviceProviderList[8].service": 'PortForwarding',
+        "serviceProviderList[8].provider": 'VirtualRouter',
+        'name': 'PrivateWithGatewayServices',
+        'specifyipranges': 'False',
+        'specifyvlan': 'False',
+        'state': 'Enabled',
+        'traffictype': 'Guest',
+        'networkrate': '3000',
+    }
 
-        request= {
-            'conservemode': 'True',
-            'displaytext': 'PrivateWithGatewayServices',
-            'egressdefaultpolicy': 'False',
-            'forvpc': 'False',
-            'guestiptype': 'Isolated',
-            'isdefault': 'True',
-            'ispersistent': 'False',
-            'supportedServices': "Vpn,Dhcp,Dns,Firewall,Lb,UserData,SourceNat,StaticNat,PortForwarding",
-            "serviceProviderList[0].service": 'Vpn',
-            "serviceProviderList[0].provider": 'VirtualRouter',
-            "serviceProviderList[1].service": 'Dhcp',
-            "serviceProviderList[1].provider": 'VirtualRouter',
-            "serviceProviderList[2].service": 'Dns',
-            "serviceProviderList[2].provider": 'VirtualRouter',
-            "serviceProviderList[3].service": 'Firewall',
-            "serviceProviderList[3].provider": 'VirtualRouter',
-            "serviceProviderList[4].service": 'Lb',
-            "serviceProviderList[4].provider": 'VirtualRouter',
-            "serviceProviderList[5].service": 'UserData',
-            "serviceProviderList[5].provider": 'VirtualRouter',
-            "serviceProviderList[6].service": 'SourceNat',
-            "serviceProviderList[6].provider": 'VirtualRouter',
-            "serviceProviderList[7].service": 'StaticNat',
-            "serviceProviderList[7].provider": 'VirtualRouter',
-            "serviceProviderList[8].service": 'PortForwarding',
-            "serviceProviderList[8].provider": 'VirtualRouter',
-            'name': 'PrivateWithGatewayServices',
-            'specifyipranges': 'False',
-            'specifyvlan': 'False',
-            'state': 'Enabled',
-            'traffictype': 'Guest',
-        }
+    networkoffering_requests['IPAC/IPVPN']={
+        'conservemode': 'True',
+        'displaytext': 'IPAC/IPVPN',
+        'egressdefaultpolicy': 'True',
+        'forvpc': 'False',
+        'guestiptype': 'Shared',
+        'isdefault': 'False',
+        'ispersistent': 'False',
+        'supportedServices': "Dhcp,Dns,UserData",
+        "serviceProviderList[0].service": 'Dhcp',
+        "serviceProviderList[0].provider": 'VirtualRouter',
+        "serviceProviderList[1].service": 'Dns',
+        "serviceProviderList[1].provider": 'VirtualRouter',
+        "serviceProviderList[2].service": 'UserData',
+        "serviceProviderList[2].provider": 'VirtualRouter',
+        'name': 'IPAC/IPVPN',
+        'specifyipranges': 'True',
+        'specifyvlan': 'True',
+        'state': 'Enabled',
+        'traffictype': 'Guest',
+        'networkrate': '3000',
+    }
 
-        pprint(request)
-        result=api.createNetworkOffering(request)
-        pprint(result)
-        if result == {} or 'networkoffering' not in result:
-            output(
-                 'Could not create network offering'
-                 ,success='relative'
-            )
+
+    for networkoffering_name in networkoffering_requests:
+        ### If the network offering does not exist create it
+        if networkoffering_name in existing_networkoffering_names:
+            output( 'Networkoffering %s found. ID: %s.' % (networkoffering_name,existing_networkoffering_ids[networkoffering_name]) )
         else:
-            networkoffering=result['networkoffering']
-            output(
-                 message='network offering created with id %s' % networkoffering['id'],
-            )
-            request={
-                'id': networkoffering['id'],
-                'state': 'enabled' 
-            }
-            result=api.updateNetworkOffering(request)
-            networkoffering=result['networkoffering']
-            output(
-                message='network offering state: %s' % networkoffering['state'],
-            )
+            request=networkoffering_requests[networkoffering_name]
+            result=api.createNetworkOffering(request)
+            if result == {} or 'networkoffering' not in result:
+                output(
+                    'Could not create network offering'
+                    ,warning=True
+                )
+            else:
+                networkoffering=result['networkoffering']
+                networkoffering_name=networkoffering['name']
+                existing_networkoffering_names.append(networkoffering_name)
+                existing_networkoffering_ids[networkoffering_name]=networkoffering['id']
+                output(
+                    message='network offering%s  created with id %s' % (networkoffering_name,networkoffering['id']),
+                )
+                request={
+                    'id': networkoffering['id'],
+                    'state': 'enabled' 
+                }
+                result=api.updateNetworkOffering(request)
+                output(
+                    message='network offering state: %s' % networkoffering['state'],
+                )
 
-    else:
-        networkoffering_id=networkoffering_result['networkoffering'][0]['id']
-        networkoffering_state=networkoffering_result['networkoffering'][0]['state']
-        output( 'Networkofferingid %s found. ID: %s. State %s' % (networkoffering_name,networkoffering_id,networkoffering_state))
 
+    networkoffering_id=existing_networkoffering_ids['PrivateWithGatewayServices']
 
     ## Checking for Compute Offerings ###
 
@@ -199,18 +238,36 @@ if __name__ == '__main__':
         'tags': 'vms',
     }
 
+    ### Create combination of CPU requests ###
+    ram_options=['512', '1024', '2048', '4096', '6144', '8192', '12288', '16384', '24576', '32768', '65536', '131072']
+    cpu_options=['1', '2', '3','4', '5', '6', '7', '8', '9', '10', '11', '12']
+    cpuspeed='2000' ### CPU LIMIT ###
+
+    for cpu in cpu_options:
+        for ram in ram_options:
+            compute_offering_displaytext='%s MB RAM,%sx2.0 GHz CPUs' % (ram,cpu)
+            compute_offering_name='%s-%s' % (ram,cpu) 
+            compute_requests[compute_offering_name]={
+                'displaytext': compute_offering_displaytext,
+                'name': compute_offering_name,
+                'cpunumber': cpu,
+                'cpuspeed': cpuspeed,
+                'memory': ram,
+                'tags': 'vms',
+            }
+
     request = {}
     result = api.listServiceOfferings(request)
     if result == {} or 'serviceoffering' not in result:
         output(
             message='Could not find service offerings',
-            success='relative'
+            warning=True
         )
     service_offerings=result['serviceoffering']
 
-    service_offerings_names={'Tiny Instance', 'Small Instance', 'Huge Instance'}
+    #service_offerings_names={'Tiny Instance', 'Small Instance', 'Huge Instance'}
 
-    for name in service_offerings_names:
+    for name in compute_requests:
         output(
             message='Looking for service offering %s\n' % name,
         )
@@ -223,7 +280,7 @@ if __name__ == '__main__':
         if service_offering_id == 'Null':
             output(
                 message='Could not find service offering %s \n' % name,
-                success='relative'
+                warning=True
             )
             request=compute_requests[name]
             result=api.createServiceOffering(request)
@@ -231,71 +288,97 @@ if __name__ == '__main__':
                 output(
                     message='Could not create service offering %s \n %s'
                     % (name,result),
-                    success='relative'
+                    warning=True
                 )
             else:
                 service_offering=result['serviceoffering']
                 output(
                     message='Service offering %s created with id %s \n' % (name,service_offering['id']),
                 )
-            
         else:
             output(
                 message='Compute offering %s found. ID: %s' %
                 (service_offering_name, service_offering_id),
             )
 
-    ### Look for disk  service offering EBS ###
+    ### Create disk offerings ###
     # Obtain EBS disk offering ID
 
-    disk_offering_name='EBS'
+    disk_requests={}
+    disk_requests['EBS']={
+        'displaytext': 'EBS',
+        'name': 'EBS',
+        'customized': 'True',
+        'displayoffering': 'True',
+        'tags': 'ebs',
+    }
+    disk_requests['mirrored']={
+        'displaytext': 'mirrored',
+        'name': 'mirrored',
+        'customized': 'True',
+        'displayoffering': 'True',
+        'tags': 'mirrored',
+    }
+    disk_requests['protected']={
+        'displaytext': 'mirrored',
+        'name': 'mirrored',
+        'customized': 'True',
+        'displayoffering': 'True',
+        'tags': 'protected',
+    }
 
-    request = {}
-    result = api.listDiskOfferings(request)
-       
-    disk_offering_id='Null'
-
-    for disk in result['diskoffering']:
-        if disk['name'] == disk_offering_name:
-            disk_offering_id = disk['id']
-
-    # Check if disk offering exists
-    if disk_offering_id == 'Null':
-        output(
-            'Disk offering %s not found' % disk_offering_name,
-            success='relative'
-        )
-
-        request={
-            'displaytext':  disk_offering_name,
-            'name':  disk_offering_name,
-            'customized': 'True',
+    root_disk_sizes = ['10','20','40','60','80','100']
+    for size in root_disk_sizes:
+        disk_offering_name='%sGB VM' % size
+        disk_offering_displaytext='%sGB root disk' % size
+        disk_requests[disk_offering_name]={
+            'name': disk_offering_name,
+            'displaytext': disk_offering_displaytext,
+            'customized': 'False',
+            'disksize': size,
             'displayoffering': 'True',
-            'tags': 'ebs',
+            'tags': 'vms',
         }
-        result=api.createDiskOffering(request)
-        if result == {} or 'diskoffering' not in result:
-            output(
-                message='Could not create Disk offering %s \n %s'
-                % (disk_offering_name,result),
-                success='relative'
-            )
-        else:
-            disk_offering=result['diskoffering']
-            output(
-                message='Disk offering %s created with. ID %s' % (disk_offering_name,disk['id']),
-            )
-    else:
-        output(
-            'Disk offering %s found. ID: %s' % (disk_offering_name,disk_offering_id)
-        )
 
-    #### Placeholder ### Create service offerings if missing ###
+    for disk_offering_name in disk_requests:
+        
+        request = {}
+        result = api.listDiskOfferings(request)
+       
+        disk_offering_id='Null'
 
+        for disk in result['diskoffering']:
+            if disk['name'] == disk_offering_name:
+                disk_offering_id = disk['id']
+
+        # Check if disk offering exists
+        if disk_offering_id == 'Null':
+            output(
+                'Disk offering %s not found' % disk_offering_name,
+                warning=True
+            )
     
+            request=disk_requests[disk_offering_name]
+            result=api.createDiskOffering(request)
+            if result == {} or 'diskoffering' not in result:
+                output(
+                    message='Could not create Disk offering %s \n %s'
+                    % (disk_offering_name,result),
+                    warning=True
+                )
+            else:
+                disk_offering=result['diskoffering']
+                output(
+                    message='Disk offering %s created with. ID %s' % (disk_offering_name,disk['id']),
+                )
+        else:
+            output(
+                'Disk offering %s found. ID: %s' % (disk_offering_name,disk_offering_id)
+            )
+
+
     ### Check if base domain exists ###
     parentdomain_name='VDCC'
-    
     request = {
         'name': parentdomain_name
     }
@@ -306,7 +389,7 @@ if __name__ == '__main__':
             'Parent domain %s not found \n'
             '%s' 
             % (parentdomain_name,parentdomain_result),
-            success='relative'
+            warning=True
         )
 
         ### Create Parent domain ###
@@ -317,7 +400,7 @@ if __name__ == '__main__':
         if domain_result == {}:
             output(
                  "Could not crate domain  %s" % parentdomain_name ,
-                 success='relative'
+                 warning=True
             )
             output(parentdomain_result)
         else:
@@ -381,11 +464,11 @@ if __name__ == '__main__':
             'ostypeid': ostype_ids[template_base],
             'url': template_url[template_base],
             'zoneid': zone_id,
-            'isfeatured': 'True',
+            'isfeatured': 'False',
             'ispublic': 'True',
-            'passwordenabled': True,
-            'isdynamicallyscalable': True,
-            'isdynamicallyscalable': True,
+            'passwordenabled': 'True',
+            'isdynamicallyscalable': 'True',
+            'isdynamicallyscalable': 'True',
             'details[0].nicAdapter': 'Vmxnet3',
             'details[0].rootDiskController': 'osdefault',
             'details[0].dataDiskController': 'osdefault',
@@ -396,7 +479,7 @@ if __name__ == '__main__':
         ### After that we go for the 
         for nic_type in nic_types:
             for disk_type in disk_types:
-                template_name='%s-flv-%s-%s' % (template_base,nic_type,disk_type)
+                template_name='%s-lfv-%s-%s' % (template_base,nic_type,disk_type)
                 template_names.append(template_name)
                 template_requests[template_name]={
                     'name': template_name,
@@ -406,7 +489,7 @@ if __name__ == '__main__':
                     'ostypeid': ostype_ids[template_base],
                     'url': template_url[template_base],
                     'zoneid': zone_id,
-                    'isfeatured': 'True',
+                    'isfeatured': 'False',
                     'ispublic': 'True',
                     'passwordenabled': True,
                     'isdynamicallyscalable': True,
@@ -415,12 +498,6 @@ if __name__ == '__main__':
                     'details[0].rootDiskController': disk_type,
                     'details[0].dataDiskController': disk_type,
                 }
-
-    ### 
-    ##pprint(template_names)
-    ##pprint(template_requests)
-    ##sys.exit()
-    ###
 
     request = {
         'templatefilter': 'executable',
@@ -444,14 +521,14 @@ if __name__ == '__main__':
                             if not template_ready:
                                 output(
                                     'template %s not ready:'  % (template_name,),
-                                    success='relative'
+                                    warning=True
                                 )
                                 pprint(template)
                             break
               if template_id == 'Null':
                     output(
                         message='Could not find template %s \n' % template_name,
-                        success='relative'
+                        warning=True
                     )
                     ### We attempt to deploy the template
                     request=template_requests[template_name]
@@ -462,7 +539,7 @@ if __name__ == '__main__':
                         output(
                             'Registering template %s with id %s ...' 
                             % (template_name,template_id),
-                            success='relative'
+                            warning=True
                         )
                         
                     else:
@@ -470,7 +547,7 @@ if __name__ == '__main__':
                             'ERROR: Failed to register template%s. '
                             ' Response was %s\n' %
                             (template_name, result),
-                            success='relative'
+                            warning=True
                         )
 
 
