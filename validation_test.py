@@ -296,7 +296,7 @@ if __name__ == '__main__':
     )
 
     ### We wil create a network specifically for each test_type test ###
-    process_name='validation-%s-%s-%d' % (test_type,user_name,time.time())
+    process_name='val-%s-%s-%d' % (test_type,user_name,time.time())
     network_name='%s-net' % (process_name)
     account_name=user_name
 
@@ -305,6 +305,7 @@ if __name__ == '__main__':
     if test_type == 'basic':
         process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, api,),)
         output_name='out_%s' % network_name
+        output_name=output_name.replace('-net','')
         process.name = process_name
         process.start()
         processes.append(process)
@@ -318,6 +319,7 @@ if __name__ == '__main__':
     elif test_type == 'network':
         process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
         output_name='out_%s' % network_name
+        output_name=output_name.replace('-net','')
         process.name = process_name
         process.start()
         processes.append(process)
@@ -331,6 +333,7 @@ if __name__ == '__main__':
     elif test_type == 'storage':
         process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
         output_name='out_%s' % network_name
+        output_name=output_name.replace('-net','')
         process.name = process_name
         process.start()
         processes.append(process)
@@ -344,6 +347,7 @@ if __name__ == '__main__':
     elif test_type == 'template':
         process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, api,),)
         output_name='out_%s' % network_name
+        output_name=output_name.replace('-net','')
         process.name = process_name
         process.start()
         processes.append(process)
@@ -355,8 +359,9 @@ if __name__ == '__main__':
         else:
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'snapshot_policy':
-        process = multiprocessing.Process(target=validate_snapshot_policy, args=(zone_id, domain_id, account_name, api,),)
-        output_name='out_%s' % account_name
+        output_name='out_%s-%d' % (account_name,time.time())
+        process = multiprocessing.Process(target=validate_snapshot_policy, args=(zone_id, domain_id, account_name, output_name, api,),)
+        output_name=output_name.replace('-net','')
         process.name = process_name
         process.start()
         processes.append(process)
