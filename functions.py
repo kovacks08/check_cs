@@ -895,7 +895,7 @@ def deploy_vm_iso(
     iso_id,
     api,
     disk_offering_name='Small',
-    offering_name='Medium Instance',
+    offering_name='1024-1',
     startvm='False'):
 
     net_out.write(
@@ -1011,7 +1011,7 @@ def deploy_vm(
     template_id,
     api,
     ip_address='',
-    offering_name='Medium Instance',
+    offering_name='1024-1',
     startvm='False'):
 
     net_out.write(
@@ -3169,7 +3169,9 @@ def lifecycle_test(
     gateway2,):
 
     #Create output file
-    net_out = open('out_%s' % vm_id, 'w')
+
+    output_name='out_%s' % vm_id
+    net_out = open(output_name, 'w')
     net_out.write(
         'lifecycle test for vm %s at %s\n' %
         (vm_id, datetime.datetime.now())
@@ -3326,7 +3328,8 @@ def basic_test(
     api,):
 
     # Create output file
-    net_out = open('out_%s' % network_name, 'w')
+    output_name='out_%s' % network_name.replace('-net','')
+    net_out = open(output_name, 'w')
     net_out.write(
         'vm_test for network %s at %s\n' %
         (network_name, datetime.datetime.now())
@@ -3368,7 +3371,7 @@ def basic_test(
         net_out=net_out,
         api=api,
         template_id=template_id,
-        offering_name='Medium Instance',
+        offering_name='2048-2',
         startvm='False',
     )
     if vm_id == False:
@@ -3592,10 +3595,10 @@ def basic_test(
         net_out.write('\nOK: Virtual Machine successfully stopped')
         net_out.write('\nOK\n')
 
-    ### Change compute offering to Tiny
+    ### Change compute offering to 512-1
     print('Resizing Virtual Machine to smaller compute offering')
     net_out.write('------------- Resizing Virtual Machine to smaller compute offering -------------\n')
-    scale_result=scale_vm(vm_id,'Tiny Instance',api,net_out)
+    scale_result=scale_vm(vm_id,'512-1',api,net_out)
     if scale_result == False:
         print('ERROR: Failed to scale Virtual Machine.  Aborting testing and cleaning up')
         net_out.write(
@@ -3656,7 +3659,7 @@ def storage_test(
 
     ## Test parameters ##
     volume_url='http://10.220.2.77/uploadvol.ova'
-    offering_name='Medium Instance'
+    offering_name='1024-1'
     disk_offering_name='EBS'
     volume_size='10'
     volume_size2='15'
@@ -3669,7 +3672,8 @@ def storage_test(
     volume_name4='%s-vol4' % network_name
 
     # Create output file
-    net_out = open('out_%s' % network_name, 'w')
+    output_name='out_%s' % network_name.replace('-net','')
+    net_out = open(output_name, 'w')
     net_out.write(
         'vm_test for network %s at %s\n' %
         (network_name, datetime.datetime.now())
@@ -4093,7 +4097,7 @@ def storage_test(
         net_out=net_out,
         api=api,
         template_id=rootvol_template_id1,
-        offering_name='Medium Instance',
+        offering_name='1024-1',
         startvm='False',
     )
     if rootvol_vm_id1 == False:
@@ -4194,7 +4198,7 @@ def storage_test(
         net_out=net_out,
         api=api,
         template_id=rootvol_template_id2,
-        offering_name='Medium Instance',
+        offering_name='1024-1',
         startvm='False',
     )
     if rootvol_vm_id2 == False:
@@ -4323,9 +4327,10 @@ def validate_snapshot_policy(
     zone_id,
     domain_id,
     account_name,
+    output_file,
     api,):
 
-    net_out = open('out_%s' % account_name, 'w')
+    net_out = open(output_file, 'w')
     net_out.write(
          'validate snapshots for account %s at %s\n' %
         (account_name, datetime.datetime.now())
@@ -4340,10 +4345,13 @@ def validate_snapshot_policy(
         }
     result = api.listVolumes(request)
     if result == {} or 'volume' not in result:
-        net_out.write(
-            'ERROR: Did not find any data volume for the account %s\n'
-            'Result was %s\n' %
-            (account_name, result)
+        net_out.write( 
+            'ERROR: Did not find any data volume for the account %s\n' 
+            'Result was %s\n' % (account_name, result)
+        )
+        output(
+            'ERROR: Did not find any data volume for the account %s\n' % account_name,
+            success=False
         )
     volumes=result['volume']
     ##print('-------------------VOLUMES-------------------\n')
@@ -4351,9 +4359,11 @@ def validate_snapshot_policy(
 
     ### Find the snapshot policies for each data volume if any ###
     volume_policies = {} 
+    volume_names = {} 
     volumes_with_policies = []
     for volume in volumes:
         volume_id=volume['id'] 
+        volume_name=volume['name'] 
         request={'volumeid': volume_id} 
         result=api.listSnapshotPolicies(request)
         if result=={} or 'snapshotpolicy' not in result:
@@ -4361,20 +4371,26 @@ def validate_snapshot_policy(
         else:
             volumes_with_policies.append(volume_id)
             volume_policies[volume_id]=result['snapshotpolicy'] 
+            volume_names[volume_id]=volume_name
 
     if volume_policies == {}:
         net_out.write('No volume found with snapshot policies\n')
         return False
     else:
-        net_out.write('The following volumes contain policies: %s\n'% volumes_with_policies)
+        for volume_id in volume_names:
+            net_out.write('The following volume contains snapshot policy : %s (%s)\n'% (volume_names[volume_id],volume_id) )
+            print('The following volume contains snapshot policy : %s (%s)\n'% (volume_names[volume_id],volume_id) )
 
     for volume_id in volumes_with_policies:
-        net_out.write('Volume %s has the following snapshot policies configured\n' % volume_id)
+        net_out.write('Volume %s (%s) has the following snapshot policies configured\n' % (volume_names[volume_id],volume_id) )
+        print('Volume %s (%s) has the following snapshot policies configured\n' % (volume_names[volume_id],volume_id) )
+
+
         for policy in volume_policies[volume_id]:
              net_out.write('policy id: %s\n' % policy['id'])
+             print('policy id: %s\n' % policy['id'])
 
     ### return True
-            
     ### For each volume, find all the snapshots and check the policies
     volume_snapshots = {}
     for volume_id in volumes_with_policies:
@@ -4389,6 +4405,7 @@ def validate_snapshot_policy(
         result=api.listSnapshots(request)
         if result == {} or 'snapshot' not in result:
             net_out.write('volume %s has no recurring snapshots\n' % volume_id)
+            print('volume %s has no recurring snapshots\n' % volume_id)
             continue 
         else:
             volume_snapshots[volume_id] = result['snapshot'] 
@@ -4417,13 +4434,19 @@ def validate_snapshot_policy(
                 'Checking policy %s. Interval: %s. Max snaps: %s.\n' 
                 % (policy_id, policy_interval_readable, policy_maxsnaps)
             )
+            print(
+                'Checking policy %s. Interval: %s. Max snaps: %s.\n' 
+                % (policy_id, policy_interval_readable, policy_maxsnaps)
+            )
             ### Check the snapshots with this particular interval
             request = {
                 'account': account_name,
                 'domain_id': domain_id,
-                'snapshottype': 'RECURRING',
-                'intervaltype': policy_interval,
+                'volume_id': volume_id,
+                ##'snapshottype': 'recurring',
+                'snapshottype': policy_interval_readable,
             }
+            result=api.listSnapshots(request)
             if result == {} or 'snapshot' not in result:
                 net_out.write(
                     'volume %s has no recurring % snapshots\n' %
@@ -4437,11 +4460,19 @@ def validate_snapshot_policy(
                     'Found %s snapshots with interval %s. MaxSnaps is %s.\n'
                     % (str(snapshot_number),policy_interval_readable,policy_maxsnaps)
                 )
+                print(
+                    'Found %s snapshots with interval %s. MaxSnaps is %s.\n'
+                    % (str(snapshot_number),policy_interval_readable,policy_maxsnaps)
+                )
                 for snapshot in policy_snapshots:
                      net_out.write(
-                    'snpashot %s status is %s.Revertable: %s\n'
-                    % (snapshot['id'],snapshot['state'],snapshot['revertable'])
-                )
+                        'snapshot %s (%s) status is %s.Revertable: %s\n'
+                        % (snapshot['id'],snapshot['intervaltype'],snapshot['state'],snapshot['revertable'])
+                     )
+                     print(
+                        'snapshot %s (%s) status is %s.Revertable: %s'
+                        % (snapshot['id'],snapshot['intervaltype'],snapshot['state'],snapshot['revertable'])
+                     )
 
     return True
     
@@ -4457,7 +4488,8 @@ def network_test(
         api,):
 
     # Create output file
-    net_out = open('out_%s' % network_name, 'w')
+    output_name='out_%s' % network_name.replace('-net','')
+    net_out = open(output_name, 'w')
     net_out.write(
         'vm_test for network %s at %s\n' %
         (network_name, datetime.datetime.now())
@@ -4498,7 +4530,7 @@ def network_test(
         api=api,
         template_id=template_id,
         ip_address='192.168.0.2',
-        offering_name='Medium Instance',
+        offering_name='1024-1',
         startvm='False',
     )
     if vm_id == False:
@@ -4807,7 +4839,8 @@ def template_test(
     iso_name2='%s-iso2' % network_name
 
     # Create output file
-    net_out = open('out_%s' % network_name, 'w')
+    output_name='out_%s' % network_name.replace('-net','')
+    net_out = open(output_name, 'w')
     net_out.write(
         'vm_test for network %s at %s\n' %
         (network_name, datetime.datetime.now())
@@ -4859,7 +4892,7 @@ def template_test(
         iso_id1,
         api,
         disk_offering_name='Small',
-        offering_name='Medium Instance',
+        offering_name='1024-1',
         startvm='False')
     if vm_id2 == False:
         return False
@@ -4939,7 +4972,7 @@ def template_test(
         net_out=net_out,
         api=api,
         template_id=template_id1,
-        offering_name='Medium Instance',
+        offering_name='1024-1',
         startvm='False',
     )
     if vm_id1 == False:
@@ -5013,13 +5046,16 @@ def template_test(
     ### We actually test mounting the ISO
     net_out.write('------------- Trying to mount the ISO From the OS -------------\n')
     print('\nTrying to mount the ISO From the OS')
-    command = (
-        'mkdir /mnt/cdrom; '
-        'mount /dev/cdrom1 /mnt/cdrom; '
-        'mount; '
-    )
 
+    command = ( 'mkdir /mnt/cdrom')
     ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    ##print(ssh_out)
+    command = ( 'mount /dev/cdrom1 /mnt/cdrom')
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    ##print(ssh_out)
+    command = ( 'mount')
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    ##print(ssh_out)
 
     test = ('/mnt/cdrom' not in ssh_out.lower())
     if test:
