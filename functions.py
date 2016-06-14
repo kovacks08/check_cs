@@ -3655,6 +3655,7 @@ def storage_test(
     domain_id,
     account_name, 
     ostype_id,
+    keep_snapshots,
     api,):
 
     ## Test parameters ##
@@ -4275,6 +4276,17 @@ def storage_test(
         output('OK\n')
         net_out.write('\nOK\n')
 
+    ### If keep_snapshots is false we clean up. Else we create the snapshot policies
+    print('Keep_snapshots: %r\n' % keep_snapshots)
+    net_out.write('Keep_snapshots: %r\n' % keep_snapshots)
+
+    if keep_snapshots==False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_volume(volume_id1,vm_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return True
+
     ### Create some snapshot schedules
     ### Create hourly snapshot schedule
     print('\n Creating Hourly Snapshot Policy for Volume 4')
@@ -4485,10 +4497,10 @@ def network_test(
         domain_id,
         account_name,
         ostype_id,
+        output_name,
         api,):
 
     # Create output file
-    output_name='out_%s' % network_name.replace('-net','')
     net_out = open(output_name, 'w')
     net_out.write(
         'vm_test for network %s at %s\n' %
@@ -5122,7 +5134,6 @@ def template_test(
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
     print('-------------Finished testing. Cleaning UP ...-------------\n')
-    detach_iso(vm_id2,api,net_out)
     delete_iso(iso_id2,api,net_out)
     delete_template(template_id1,api,net_out)
     delete_vm(vm_id1,api,net_out)
