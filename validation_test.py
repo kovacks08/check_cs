@@ -60,6 +60,7 @@ if __name__ == '__main__':
         choices=zone_names,
         default=zone_names[0],
         help='The zone name.',
+        required=True
     )
 
     parser.add_argument(
@@ -70,7 +71,8 @@ if __name__ == '__main__':
         default='Centos64',
         help='The template name.'
              ' You must select a template that runs linux with ssh enabled.'
-             ' It must also have the password reset enabled.'
+             ' It must also have the password reset enabled.',
+        required=True
     )
 
     parser.add_argument(
@@ -78,6 +80,7 @@ if __name__ == '__main__':
         dest='domain_name',
         type=str,
         help='Domain name',
+        required=True
     )
 
     parser.add_argument(
@@ -94,6 +97,14 @@ if __name__ == '__main__':
         type=str,
         default='basic',
         help='Type of test: basic,network,storage,templates,snapshot_policy,lifecycle',
+        required=True
+    )
+
+    parser.add_argument(
+        '-k', '--keep_snapshots',
+        dest='keep_snapshots',
+        action='store_true',
+        help='Keep volume with snapshot policies to test afterwards if storage_test is storage',
     )
 
     parser.add_argument(
@@ -121,6 +132,10 @@ if __name__ == '__main__':
     test_type = args.test_type
     iso_url = args.iso_url
     template_url = args.template_url
+    keep_snapshots = args.keep_snapshots
+
+    #print('keep_snapshots: %s' % keep_snapshots)
+    #sys.exit()
 
     ### Obtain the domain id ###
 
@@ -304,8 +319,7 @@ if __name__ == '__main__':
     # Select the function depending on the test type
     if test_type == 'basic':
         process = multiprocessing.Process(target=basic_test, args=(zone_id, network_name, template_id, domain_id, account_name, api,),)
-        output_name='out_%s' % network_name
-        output_name=output_name.replace('-net','')
+        output_name='out_%s' % process_name
         process.name = process_name
         process.start()
         processes.append(process)
@@ -317,9 +331,8 @@ if __name__ == '__main__':
         else:
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'network':
-        process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
-        output_name='out_%s' % network_name
-        output_name=output_name.replace('-net','')
+        output_name='out_%s' % process_name
+        process = multiprocessing.Process(target=network_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, output_name,api,),)
         process.name = process_name
         process.start()
         processes.append(process)
@@ -331,9 +344,8 @@ if __name__ == '__main__':
         else:
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'storage':
-        process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, api,),)
-        output_name='out_%s' % network_name
-        output_name=output_name.replace('-net','')
+        output_name='out_%s' % process_name
+        process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, keep_snapshots, api,),)
         process.name = process_name
         process.start()
         processes.append(process)
@@ -345,9 +357,8 @@ if __name__ == '__main__':
         else:
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'template':
-        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, api,),)
         output_name='out_%s' % network_name
-        output_name=output_name.replace('-net','')
+        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, api,),)
         process.name = process_name
         process.start()
         processes.append(process)
