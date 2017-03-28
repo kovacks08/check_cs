@@ -40,16 +40,16 @@ if __name__ == '__main__':
                   in zone_result['zone']]
 
     # List available Templates
-    request = {
-        'templatefilter': 'executable',
-    }
+    #request = {
+    #    'templatefilter': 'executable',
+    #}
 
-    temp_result = admin_api.listTemplates(request)
+    #temp_result = admin_api.listTemplates(request)
 
-    template_names = [template['name']
-                      for template
-                      in temp_result['template']
-                      if template['isready']]
+    #template_names = [template['name']
+    #                  for template
+    #                  in temp_result['template']
+    #                  if template['isready']]
 
     # Parse the arguments
     parser = argparse.ArgumentParser()
@@ -57,8 +57,8 @@ if __name__ == '__main__':
         '-z', '--zone',
         dest='zone_name',
         type=str,
-        choices=zone_names,
-        default=zone_names[0],
+        #choices=zone_names,
+        #default=zone_names[0],
         help='The zone name.',
         required=True
     )
@@ -67,7 +67,7 @@ if __name__ == '__main__':
         '-t', '--template',
         dest='template_name',
         type=str,
-        choices=template_names,
+        #choices=template_names,
         default='Centos64',
         help='The template name.'
              ' You must select a template that runs linux with ssh enabled.'
@@ -136,6 +136,8 @@ if __name__ == '__main__':
 
     #print('keep_snapshots: %s' % keep_snapshots)
     #sys.exit()
+
+    upload_vol_url='http://10.220.2.77/uploadvol.ova'
 
     ### Obtain the domain id ###
 
@@ -345,7 +347,7 @@ if __name__ == '__main__':
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'storage':
         output_name='out_%s' % process_name
-        process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, keep_snapshots, api,),)
+        process = multiprocessing.Process(target=storage_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, upload_vol_url, keep_snapshots, api,),)
         process.name = process_name
         process.start()
         processes.append(process)

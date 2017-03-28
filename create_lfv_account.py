@@ -289,6 +289,7 @@ if __name__ == '__main__':
             )
         for template_name in template_ids:
             vm_name='vm-%s-%s' % (account_name,template_name)
+            template_id= template_ids[template_name]
             pprint(vm_name)
             process = multiprocessing.Process(target=deploy_vm, args=(
                 vm_name,

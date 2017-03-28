@@ -894,7 +894,7 @@ def deploy_vm_iso(
     net_out,
     iso_id,
     api,
-    disk_offering_name='Small',
+    disk_offering_name='10GB VM',
     offering_name='1024-1',
     startvm='False'):
 
@@ -945,6 +945,8 @@ def deploy_vm_iso(
 
     request = {}
     result = api.listDiskOfferings(request)
+
+    disk_offering_id == ''
 
     for disk in result['diskoffering']:
         if disk['name'] == disk_offering_name:
@@ -1279,7 +1281,7 @@ def reset_password(vm_id,api,net_out):
 
     if result == {} or 'jobid' not in result.keys():
         net_out.write(
-            'ERROR: Failed to isse job to reset password %s. '
+            'ERROR: Failed to issue job to reset password %s. '
             ' Response was %s\n' %
             (vm_id, result),
         )
@@ -3177,6 +3179,7 @@ def lifecycle_test(
         (vm_id, datetime.datetime.now())
     )
     net_out.write('-----------------------------------------------------\n\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # First of all we gather data about the VM  an the network
     request = {'id': vm_id}
@@ -3253,8 +3256,9 @@ def lifecycle_test(
     )
     ssh_command(command, ip_address, vm_password, public_port)
     command = (
-        'pvcreate /dev/sdb; '
-        'vgcreate datavg /dev/sdb; '
+        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi '
+        'pvcreate $BLOCKDEVICE; '
+        'vgcreate datavg $BLOCKDEVICE; '
         'lvcreate -l 100%FREE -n datavol datavg; '
         'mkfs -t ext4 /dev/datavg/datavol'
     )
@@ -3335,6 +3339,7 @@ def basic_test(
         (network_name, datetime.datetime.now())
     )
     net_out.write('-----------------------------------------------------\n\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # --------- CREATION ---------
     #net_out.write('--------- CREATION ---------\n')
@@ -3357,10 +3362,12 @@ def basic_test(
 
     # Deploy VM
     net_out.write('------------- Deploying VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_name='%s-vm1' % network_name
 
     #print('Before Deploy VM template ID %s\n' % template_id)
     net_out.write('------------ Deploying VM: -------------')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('Deploying VM:')
     vm_id=deploy_vm(
         vm_name=vm_name,
@@ -3384,6 +3391,7 @@ def basic_test(
 
     # Start VM
     net_out.write('------------- Starting VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('Starting VM:')
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
@@ -3398,6 +3406,7 @@ def basic_test(
 
     # Reboot VM #
     net_out.write('------------- Rebooting VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('Rebooting VM:')
     net_out.write('Rebooting VM...\n')
     request = {'id': vm_id}
@@ -3429,6 +3438,7 @@ def basic_test(
 
     # Stop VM
     net_out.write('------------- Stopping VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('Rebooting VM:')
     net_out.write('Rebooting VM...\n')
     stop_success = stop_vm(vm_id,api,net_out)
@@ -3447,6 +3457,7 @@ def basic_test(
     ## We rebuild the vm and try to start it 
     print('Rebuilding VM from template')
     net_out.write('------------- Rebuilding VM from template -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     new_vm_password=rebuild_vm(vm_id,api,net_out)
     if new_vm_password == False:
         print('ERROR: Problem recreating VM. Aborting testing and cleaning up')
@@ -3469,6 +3480,7 @@ def basic_test(
     ### Reset the password ### 
     print('Resetting password of VM:')
     net_out.write('------------- Resetting password of VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_password=reset_password(vm_id,api,net_out)
     if vm_password == False:
         print('ERROR: Failed to reset password. Aborting testing and cleaning up')
@@ -3489,6 +3501,7 @@ def basic_test(
     ### Creating a volume and attaching it to the VM
     print('Creating new data volume')
     net_out.write('------------- Creating new data volume -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     volume_name = ('%s-vol1' % network_name)
     disk_offering_name='EBS'
     volume_size='10'
@@ -3512,6 +3525,7 @@ def basic_test(
     # Attach volumes
     print('Attaching volume to VM')
     net_out.write('------------- Attaching volume to VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     result_attach=attach_volume(volume_id,vm_id,api,net_out)
     if result_attach == False:
         print('ERROR: Failed to attach additional volume. Aborting testing and cleaning up')
@@ -3527,6 +3541,7 @@ def basic_test(
     #### At this point we call the function to remove the volume
     print('Removing volume from VM')
     net_out.write('------------- Removing volume from VM -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     delete_success=delete_volume(volume_id,vm_id,api,net_out)
     if delete_success == False:
         delete_vm(vm_id,api,net_out)
@@ -3539,6 +3554,7 @@ def basic_test(
     # Start VM again
     print('Starting Virtual Machine')
     net_out.write('------------- Starting Virtual Machine -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     start_success=start_vm(vm_id,api,net_out)
     if start_success == False:
         print('ERROR: Failed to restart VM.  Aborting testing and cleaning up')
@@ -3554,6 +3570,7 @@ def basic_test(
     # Take VM snapshot
     print('Taking Virtual Machine Snapshot')
     net_out.write('------------- Taking Virtual Machine Snapshot -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_snapshot_id=create_vmsnapshot(vm_id,api,net_out)
     if vm_snapshot_id == False:
         print('ERROR: Failed to create VM snapshot.  Aborting testing and cleaning up')
@@ -3569,6 +3586,7 @@ def basic_test(
     # Delete VM snapshot
     print('Removing Virtual Machine Snapshot')
     net_out.write('------------- Removing Virtual Machine Snapshot -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     delete_snapshot_success=delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out)
     #print('delete_snapshot_success %s\n' % delete_snapshot_success)
     if delete_snapshot_success == False:
@@ -3584,6 +3602,7 @@ def basic_test(
     ### Stop the VM again
     print('Stopping Virtual Machine')
     net_out.write('------------- Stopping Virtual Machine -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     stop_success = stop_vm(vm_id,api,net_out)
     if stop_success == False:
         print('ERROR: Failed to stop Virtual Machine.  Aborting testing and cleaning up')
@@ -3598,6 +3617,7 @@ def basic_test(
     ### Change compute offering to 512-1
     print('Resizing Virtual Machine to smaller compute offering')
     net_out.write('------------- Resizing Virtual Machine to smaller compute offering -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     scale_result=scale_vm(vm_id,'512-1',api,net_out)
     if scale_result == False:
         print('ERROR: Failed to scale Virtual Machine.  Aborting testing and cleaning up')
@@ -3616,6 +3636,7 @@ def basic_test(
     # Start VM again
     print('Starting Virtual Machine')
     net_out.write('------------- Starting Virtual Machine -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     start_success=start_vm(vm_id,api,net_out)
     if start_success == False:
         print('ERROR: Failed to start Virtual Machine.  Aborting testing and cleaning up')
@@ -3642,6 +3663,7 @@ def basic_test(
     ### Finish testing
     output('\nOK: Virtual Machine testing finsihed. Cleaning UP')
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     delete_vm(vm_id,api,net_out)
     delete_network(network_id,api,net_out)
     return True
@@ -3655,11 +3677,13 @@ def storage_test(
     domain_id,
     account_name, 
     ostype_id,
+    upload_vol_url,
     keep_snapshots,
     api,):
 
     ## Test parameters ##
-    volume_url='http://10.220.2.77/uploadvol.ova'
+    #volume_url='http://10.220.2.77/uploadvol.ova'
+    volume_url=upload_vol_url
     offering_name='1024-1'
     disk_offering_name='EBS'
     volume_size='10'
@@ -3680,13 +3704,16 @@ def storage_test(
         (network_name, datetime.datetime.now())
     )
     net_out.write('-----------------------------------------------------\n\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # --------- CREATION ---------
     net_out.write('--------- CREATION ---------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # Create the network
     print('\nCreating Network')
     net_out.write('-------------Creating Network 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     ##print(network_id)
     if network_id == False:
@@ -3703,6 +3730,7 @@ def storage_test(
     # Deploy VM
     print('\nDeploying VM1')
     net_out.write('------------- Creating VM 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_id=deploy_vm(
         vm_name=vm_name,
         zone_id=zone_id,
@@ -3726,6 +3754,7 @@ def storage_test(
     # Start VM
     print('\nStarting VM1')
     net_out.write('------------- Starting VM 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_password=start_vm(vm_id,api,net_out)
     if vm_password == False:
         delete_vm(vm_id,api,net_out)
@@ -3739,6 +3768,7 @@ def storage_test(
 
     print('\nCreating Port Forwarding Rules')
     net_out.write('------------- Creating Port Forwarding Rules -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     port_forwarding_data=add_portforwarding(network_id,vm_id,api,net_out)
     if port_forwarding_data == False:
@@ -3761,6 +3791,7 @@ def storage_test(
     ### Create a data volume1
     print('\nCreating volume1')
     net_out.write('------------- Creating Volume 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     volume_id1=create_volume(volume_name1,volume_size,disk_offering_name,zone_id,account_name,domain_id,api,net_out)
     if volume_id1 == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -3812,8 +3843,11 @@ def storage_test(
     ssh_command(command, ip_address, vm_password, public_port)
     # Format attached volumes
     command = (
-        'pvcreate /dev/sdb; ' 
-        'vgcreate datavg /dev/sdb; ' 
+        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi '
+        'pvcreate $BLOCKDEVICE; '
+        'vgcreate datavg $BLOCKDEVICE; '
+        #'pvcreate /dev/sdb; ' 
+        #'vgcreate datavg /dev/sdb; ' 
         'lvcreate -l 100%FREE -n datavol datavg; ' 
         'mkfs -t ext4 /dev/datavg/datavol'
     )
@@ -3850,6 +3884,7 @@ def storage_test(
     # Add a testfile and umount the disk
     print('\nAdd a testfile and umount the disk')
     net_out.write('------------- Add a testfile and umount the disk -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     command = (
         'touch /media/volume_test/test_file; '
         'umount /media/volume_test; '
@@ -3862,6 +3897,7 @@ def storage_test(
     ### Snapshot Data Volume1
     print('\nCreating Snapshot of Data Volume 1')
     net_out.write('------------- Creating Snapshot of Data Volume 1  -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     snapshot_id1=snapshot_volume(volume_id1,api,net_out)
     if snapshot_id1 == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -3876,6 +3912,7 @@ def storage_test(
     ### Create Volume from snapshot
     print('\nCreating Volume2 from the Snapshot')
     net_out.write('------------- Creating Volume2 from the Snapshot -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     volume_id2=create_volume_fromsnap(volume_name2,snapshot_id1,volume_size,zone_id,api,net_out)
     if volume_id2 == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -3890,6 +3927,7 @@ def storage_test(
     ### Delete volume1 ###
     print('\nDeleting Volume1')
     net_out.write('------------- Deleting Volume1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     result_delete=delete_volume(volume_id1,vm_id,api,net_out)
     if result_delete == False:
         remove_portforwarding(portforward_id,api,net_out)
@@ -4514,6 +4552,7 @@ def network_test(
     # Create the network
     print('\nCreating network 1')
     net_out.write('-------------Creating Network 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     if network_id == False:
         net_out.write(
@@ -4532,6 +4571,7 @@ def network_test(
     # Deploy VM
     print('\nCreating VM 1')
     net_out.write('-------------Creating VM 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     vm_id=deploy_vm(
         vm_name=vm_name,
         zone_id=zone_id,
@@ -4564,6 +4604,7 @@ def network_test(
     
     ### We add portforwarding rules to be able to SSH to the VM directly ###
     net_out.write('------------- Adding SSH port forwarding and firewall rules for VM 1-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAdding SSH port forwarding and firewall rules for VM 1')
     port_forwarding_data=add_portforwarding(network_id,vm_id,api,net_out)
     if  port_forwarding_data == False:
@@ -4595,6 +4636,7 @@ def network_test(
 
     ### Acquire a public IP
     net_out.write('------------- Acquiring new IP and adding static NAT-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAdding static NAT to VM 1')
     ipaddress_id=get_public_ip(network_id,api,net_out) 
     if ipaddress_id == False:
@@ -4624,6 +4666,7 @@ def network_test(
     ### fwrule_id=add_firewall_rule(ipaddress_id,network_id,protocol,cidr_list,start_port,end_port,api,net_out)
     print('\nAdding additional FW rules for NAT IP')
     net_out.write('------------- Adding additional FW rules for NAT IP -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     fwrule_id=add_firewall_rule(ipaddress_id,network_id,'TCP','0.0.0.0/0','22000','22000',api,net_out)
     if fwrule_id == False:
         disable_nat(ipaddress_id,api,net_out)
@@ -4640,6 +4683,7 @@ def network_test(
     ### Remove Firewall rule
     print('\nRemoving additional FW rules for NAT IP')
     net_out.write('------------- Removing additional FW rules for NAT IP -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     success_delete_fwrule=delete_firewall_rule(fwrule_id,api,net_out)
     if success_delete_fwrule == False:
         disable_nat(ipaddress_id,api,net_out)
@@ -4656,6 +4700,7 @@ def network_test(
     ### Disable NAT
     print('\nRemoving statinc NAT`')
     net_out.write('------------- Removing NAT IP -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     success_disable_nat=disable_nat(ipaddress_id,api,net_out)
     if success_disable_nat == False:
         release_public_ip(ipaddress_id,network_id,api,net_out)
@@ -4684,6 +4729,7 @@ def network_test(
 
     ## Create secondary network
     net_out.write('------------- Creating Network 2 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nCreating network 2')
     network_name2=network_name+'-aux' 
     network_id2=create_network(zone_id, domain_id, account_name, network_name2, api, net_out, gateway='192.168.10.1')
@@ -4712,6 +4758,7 @@ def network_test(
 
     ### Add additional NIC to the VM ###
     net_out.write('------------- Creating NIC on Network 2 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAdding NIC on network 2 to Virtual machine 1')
     ip_address2='192.168.10.2'
     nic_id2=add_nic(vm_id,network_id2,ip_address2,api,net_out)
@@ -4728,6 +4775,7 @@ def network_test(
 
     ### Restart network 1 without cleanup ###
     net_out.write('------------- Restarting Network 1. No cleanup  -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nReseting network 1')
     restart_success=restart_network(network_id,api,net_out,cleanup='False')
     if restart_success == False:
@@ -4743,6 +4791,7 @@ def network_test(
     
     ### Restart network 2 with cleanup ###
     net_out.write('------------- Restarting Network 2. With cleanup  -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nRestarting network 2 with cleanup (recreate Virtual Router)')
     restart_success=restart_network(network_id2,api,net_out,cleanup='True')
     if restart_success == False:
@@ -4758,6 +4807,7 @@ def network_test(
     
     ### Set network 2 as default
     net_out.write('------------- Setting nic on network 2 as default nic  -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nSetting nic on network 2 as default nic')
     default_success=set_network_default(nic_id2,vm_id,api,net_out,cleanup='False')
     if default_success == False:
@@ -4773,6 +4823,7 @@ def network_test(
 
     ### Remove nic1
     net_out.write('------------- Removing nic on network 1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nRemoving nic on network 1')
     net_out.write('------------- Removing egress rules -------------\n')
     remove_success=remove_portforwarding(portforward_id,api,net_out)
@@ -4786,6 +4837,7 @@ def network_test(
         net_out.write('\nOK\n')
 
     net_out.write('------------- Removing egress rules -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     remove_success=remove_egress(egress_ids,api,net_out)
     if remove_success == False:
         delete_vm(vm_id,api,net_out)
@@ -4807,6 +4859,7 @@ def network_test(
 
     ### Add secondary IP to nic 2
     net_out.write('------------- Adding secondary IP to network 2 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAdding secondary IP to network 2')
     secondary_success=add_secondaryip(nic_id2,vm_id,'192.168.10.111',api,net_out)
     if secondary_success == False:
@@ -4821,6 +4874,7 @@ def network_test(
     ### Finish testing
     print('\nOK: Network testing finished OK')
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     delete_vm(vm_id,api,net_out)
     delete_network(network_id,api,net_out)
     delete_network(network_id2,api,net_out)
@@ -4858,12 +4912,15 @@ def template_test(
         (network_name, datetime.datetime.now())
     )
     net_out.write('-----------------------------------------------------\n\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # --------- CREATION ---------
     net_out.write('--------- CREATION ---------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
 
     # Create the network
     net_out.write('------------- Creating Network -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nCreating Network') 
     network_id=create_network(zone_id, domain_id, account_name, network_name, api, net_out)
     ##print(network_id)
@@ -4880,6 +4937,7 @@ def template_test(
 
     ### Upload ISO1 ###
     net_out.write('------------- Uploading ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nUploading ISO1') 
     bootable='True'
     iso_id1=upload_iso(iso_name1,iso_url1,bootable,zone_id,domain_id,account_name,api,net_out)
@@ -4893,6 +4951,7 @@ def template_test(
     ### Skip deploying vm from ISO ###
     ### Deploy VM from ISO1 ###
     net_out.write('------------- Deploying Virtual Machine from ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nDeploying Virtual Machine from ISO1') 
     vm_id2=deploy_vm_iso(
         vm_name2,
@@ -4914,6 +4973,7 @@ def template_test(
 
     # Start VM
     net_out.write('------------- Starting Virtual Machine from ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nStarting Virtual Machine from ISO1') 
     vm_start_result=start_vm(vm_id2,api,net_out)
     if vm_start_result == False:
@@ -4928,6 +4988,7 @@ def template_test(
 
     # Stop VM
     net_out.write('------------- Stopping Virtual Machine from ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nStopping Virtual Machine from ISO1') 
     vm_stop_result=stop_vm(vm_id2,api,net_out)
     if vm_stop_result == False:
@@ -4942,6 +5003,7 @@ def template_test(
 
     ### We clean_up the first test ###
     net_out.write('------------- Deleting Virtual Machine from ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nDeleting Virtual Machine from ISO1') 
     delete_result=delete_vm(vm_id2,api,net_out)
     if delete_result==False:
@@ -4952,6 +5014,7 @@ def template_test(
         net_out.write('\nOK\n')
 
     net_out.write('------------- Deleting  ISO1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nDeleting ISO1') 
     delete_result=delete_iso(iso_id1,api,net_out)
     if delete_result==False:
@@ -4963,6 +5026,7 @@ def template_test(
     
     ### Upload template1 (not public)###
     net_out.write('------------- Uploading Template1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nUploading Template1') 
     template_id1=upload_template(template_name,template_url1,zone_id,domain_id,'False',account_name,api,net_out)
     if template_id1==False:
@@ -4974,6 +5038,7 @@ def template_test(
 
     ### Deploy the firt vm_id
     net_out.write('------------- Deploying Virtual Machine from Template1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nDeploying Virtual Machine from Template1')
     vm_id1=deploy_vm(
         vm_name=vm_name1,
@@ -4997,6 +5062,7 @@ def template_test(
 
     # Start VM
     net_out.write('------------- Starting Virtual Machine from Template1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nStarting Virtual Machine from Template1')
     vm_password=start_vm(vm_id1,api,net_out)
     if vm_password == False:
@@ -5006,6 +5072,7 @@ def template_test(
 
     ### Upload ISO2 ###
     net_out.write('------------- Uploading ISO2 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nUploading ISO2')
     bootable='False'
     iso_id2=upload_iso(iso_name2,iso_url2,bootable,zone_id,domain_id,account_name,api,net_out)
@@ -5021,6 +5088,7 @@ def template_test(
 
     ### Attach ISO to vm ###
     net_out.write('------------- Attaching ISO2 to Virtual Machine -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAttaching ISO2 to Virtual Machine')
     attach_result=attach_iso(iso_id2,vm_id1,api,net_out)
     if attach_result == False:
@@ -5035,6 +5103,7 @@ def template_test(
 
     ### Prepare Portforwarding Rules ###
     net_out.write('------------- Adding SSH Port Forwarding to  Virtual Machine -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nAdding SSH Port Forwarding to Virtual Machine')
     port_forwarding_data=add_portforwarding(network_id,vm_id1,api,net_out)
     if  port_forwarding_data == False:
@@ -5057,6 +5126,7 @@ def template_test(
 
     ### We actually test mounting the ISO
     net_out.write('------------- Trying to mount the ISO From the OS -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nTrying to mount the ISO From the OS')
 
     command = ( 'mkdir /mnt/cdrom')
@@ -5094,6 +5164,7 @@ def template_test(
 
     ### We umount ISO
     net_out.write('------------- Trying to umount the ISO From the OS -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nTrying to umount the ISO From the OS')
     command = (
         'umount /mnt/cdrom'
@@ -5102,6 +5173,7 @@ def template_test(
 
     ### At this stage we remove the port forwarding ###
     net_out.write('------------- Removing Port Forwarding Rules -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nRemoving Port Forwarding Rules')
     remove_success=remove_portforwarding(portforward_id,api,net_out)
     if remove_success == False:
@@ -5116,6 +5188,7 @@ def template_test(
         net_out.write('\nOK\n')
 
     net_out.write('------------- Trying to detach the ISO From the OS -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('\nTrying to detach the ISO From the OS')
     result_detach=detach_iso(vm_id1,api,net_out)
     if result_detach==False:
@@ -5133,6 +5206,7 @@ def template_test(
 
     ### Finish testing
     net_out.write('-------------Finished testing. Cleaning UP ...-------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
     print('-------------Finished testing. Cleaning UP ...-------------\n')
     delete_iso(iso_id2,api,net_out)
     delete_template(template_id1,api,net_out)
