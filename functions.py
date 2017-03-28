@@ -373,12 +373,17 @@ def upload_volume(volume_name,volume_url,disk_offering_name,zone_id,account_name
         )
         return False
 
+    if 'ova' in volume_url:
+        disk_format = 'OVA'
+    elif 'vhd' in volume_url:
+        disk_format = 'VHD'
+
     request = {
         'name': volume_name,
         'zoneid': zone_id,
         'diskofferingid': disk_offering_id,
         'url': volume_url,
-        'format': 'OVA',
+        'format': disk_format,
         'account': account_name,
         'domainid': domain_id,
     }
@@ -395,7 +400,7 @@ def upload_volume(volume_name,volume_url,disk_offering_name,zone_id,account_name
 
     result = wait_for_job(result['jobid'], api)
 
-    if result == {} or result['volume']['id'] == []:
+    if result == {} or 'volume' not in result:
         net_out.write(
             'ERROR: Failed to upload volume on zone %s.'
             ' Response was %s\n' % (zone_id, result),
@@ -893,6 +898,7 @@ def deploy_vm_iso(
     account_name,
     net_out,
     iso_id,
+    hypervisor,
     api,
     disk_offering_name='10GB VM',
     offering_name='1024-1',
@@ -946,7 +952,7 @@ def deploy_vm_iso(
     request = {}
     result = api.listDiskOfferings(request)
 
-    disk_offering_id == ''
+    disk_offering_id = ''
 
     for disk in result['diskoffering']:
         if disk['name'] == disk_offering_name:
@@ -971,7 +977,7 @@ def deploy_vm_iso(
         'domainid': domain_id,
         'account': account_name,
         'diskofferingid': disk_offering_id,
-        'hypervisor': 'VMware',
+        'hypervisor': hypervisor,
     }
 
     result = api.deployVirtualMachine(request)
@@ -3011,7 +3017,7 @@ def delete_vmsnapshot(vm_id,vm_snapshot_id,api,net_out):
             ) 
             return True
         
-def upload_template(template_name,template_url,zone_id,domain_id,is_public,account_name,api,net_out):
+def upload_template(template_name,template_url,zone_id,domain_id,is_public,account_name,hypervisor,api,net_out):
     net_out.write('Uploading template %s ...\n' % (template_name))
 
     request={}
@@ -3025,11 +3031,16 @@ def upload_template(template_name,template_url,zone_id,domain_id,is_public,accou
         elif ostype['description']=='CentOS 6.4 (64-bit)':
             ostype_ids['CentOS']=ostype['id']
 
+    if 'ova' in template_url:
+        disk_format = 'OVA'
+    elif 'vhd' in template_url:
+        disk_format = 'VHD'
+
     ### We Hardcode Centos64.ova template
     request={
         'displaytext': template_name,
-        'format': 'OVA',
-        'hypervisor': 'VMWare',
+        'format': disk_format,
+        'hypervisor': hypervisor,
         'name': template_name,
         'ostypeid': ostype_ids['CentOS'],
         'url': template_url,
@@ -3256,9 +3267,12 @@ def lifecycle_test(
     )
     ssh_command(command, ip_address, vm_password, public_port)
     command = (
-        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi '
+        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi; '
+        'echo $BLOCKDEVICE;'
         'pvcreate $BLOCKDEVICE; '
         'vgcreate datavg $BLOCKDEVICE; '
+        #'pvcreate /dev/sdb; '
+        #'vgcreate datavg /dev/sdb; '
         'lvcreate -l 100%FREE -n datavol datavg; '
         'mkfs -t ext4 /dev/datavg/datavol'
     )
@@ -3843,7 +3857,8 @@ def storage_test(
     ssh_command(command, ip_address, vm_password, public_port)
     # Format attached volumes
     command = (
-        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi '
+        'if [ -b /dev/sdb ]; then export BLOCKDEVICE=/dev/sdb; elif [ -b /dev/xvdb ]; then export BLOCKDEVICE=/dev/xvdb; fi; '
+        'echo $BLOCKDEVICE;' 
         'pvcreate $BLOCKDEVICE; '
         'vgcreate datavg $BLOCKDEVICE; '
         #'pvcreate /dev/sdb; ' 
@@ -3853,6 +3868,8 @@ def storage_test(
     )
     ssh_out=ssh_command(command, ip_address, vm_password, public_port)
     net_out.write(ssh_out)
+    output(ssh_out)
+    net_out.write('Mounting Volunes.\n')
     # Mount attached volumes
     command = (
         'mkdir /media/volume_test; '
@@ -3924,6 +3941,20 @@ def storage_test(
         output('OK\n')
         net_out.write('\nOK\n')
 
+    ### Stopping the VM to detach the volume for XenServer ###
+    net_out.write('------------- Stopping Virtual Machine 1 to detach volume-------------\n')
+    stop_success = stop_vm(vm_id,api,net_out)
+    if stop_success == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_volume(volume_id1,vm_id,api,net_out)
+        delete_volume(volume_id2,vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n') 
+
     ### Delete volume1 ###
     print('\nDeleting Volume1')
     net_out.write('------------- Deleting Volume1 -------------\n')
@@ -3931,6 +3962,20 @@ def storage_test(
     result_delete=delete_volume(volume_id1,vm_id,api,net_out)
     if result_delete == False:
         remove_portforwarding(portforward_id,api,net_out)
+        delete_volume(volume_id2,vm_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Start the VM after detaching Volume1 ####
+    print('\nStarting VM1')
+    net_out.write('------------- Starting VM1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
+    start_success=start_vm(vm_id,api,net_out)
+    if start_success == False:
         delete_volume(volume_id2,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
@@ -3995,6 +4040,20 @@ def storage_test(
         delete_network(network_id,api,net_out)
         return False
 
+    ### Stopping the VM to detach the volume for XenServer ###
+    net_out.write('------------- Stopping Virtual Machine 1 to detach volume-------------\n')
+    stop_success = stop_vm(vm_id,api,net_out)
+    if stop_success == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_volume(volume_id1,vm_id,api,net_out)
+        delete_volume(volume_id2,vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
     ### Delete Volume2
     print('\nDeleting Volume2')
     net_out.write('------------- Deleting Volume2 -------------\n')
@@ -4002,6 +4061,20 @@ def storage_test(
     result_delete=delete_volume(volume_id2,vm_id,api,net_out)
     if result_delete == False:
         remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
+
+    ### Start the VM after detaching Volume2 ####
+    print('\nStarting VM1')
+    net_out.write('------------- Starting VM1 -------------\n')
+    net_out.write(time.strftime("%I:%M:%S: "))
+    start_success=start_vm(vm_id,api,net_out)
+    if start_success == False:
+        delete_volume(volume_id2,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
         return False
@@ -4054,9 +4127,17 @@ def storage_test(
         'lvchange -ay uploadvg/uploadvol; '
         'mkdir /mnt/upload; '
         'mount /dev/uploadvg/uploadvol /mnt/upload; '
-        'ls /mnt/upload/*txt '
+        'df -h; '
+        'ls /mnt/upload/*txt; '
     )
     ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+    output(ssh_out)
+
+    command = 'find /mnt/upload/upload.txt'
+    ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+    net_out.write(ssh_out)
+    output(ssh_out)
 
     test = ('upload.txt' not in ssh_out.lower())
     if test:
@@ -4064,6 +4145,7 @@ def storage_test(
             'Could not find upload.txt file'
         )
         remove_portforwarding(portforward_id,api,net_out)
+        stop_vm(vm_id,api,net_out)
         delete_volume(volume_id3,vm_id,api,net_out)
         delete_vm(vm_id,api,net_out)
         delete_network(network_id,api,net_out)
@@ -4082,6 +4164,20 @@ def storage_test(
         'vgexport uploadvg '
     )
     ssh_out = ssh_command(command, ip_address, vm_password, public_port)
+
+     ### Stopping the VM to detach the volume for XenServer ###
+    net_out.write('------------- Stopping Virtual Machine 1 to detach volume-------------\n')
+    stop_success = stop_vm(vm_id,api,net_out)
+    if stop_success == False:
+        remove_portforwarding(portforward_id,api,net_out)
+        delete_vm(vm_id,api,net_out)
+        delete_volume(volume_id1,vm_id,api,net_out)
+        delete_volume(volume_id2,vm_id,api,net_out)
+        delete_network(network_id,api,net_out)
+        return False
+    else:
+        output('OK\n')
+        net_out.write('\nOK\n')
 
     ### Delete Volume3
     print('\nDeleting Volume3')
@@ -4892,6 +4988,7 @@ def template_test(
     ostype_id,
     iso_url,
     template_url,
+    hypervisor,
     api,):
 
     ### Define names and settings ###
@@ -4961,8 +5058,9 @@ def template_test(
         account_name,
         net_out,
         iso_id1,
+        hypervisor,
         api,
-        disk_offering_name='Small',
+        disk_offering_name='10GB VM',
         offering_name='1024-1',
         startvm='False')
     if vm_id2 == False:
@@ -5028,7 +5126,7 @@ def template_test(
     net_out.write('------------- Uploading Template1 -------------\n')
     net_out.write(time.strftime("%I:%M:%S: "))
     print('\nUploading Template1') 
-    template_id1=upload_template(template_name,template_url1,zone_id,domain_id,'False',account_name,api,net_out)
+    template_id1=upload_template(template_name,template_url1,zone_id,domain_id,'False',account_name,hypervisor,api,net_out)
     if template_id1==False:
         delete_network(network_id,api,net_out)
         return False

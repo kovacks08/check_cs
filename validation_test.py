@@ -96,7 +96,7 @@ if __name__ == '__main__':
         dest='test_type',
         type=str,
         default='basic',
-        help='Type of test: basic,network,storage,templates,snapshot_policy,lifecycle',
+        help='Type of test: basic,network,storage,template,snapshot_policy,lifecycle',
         required=True
     )
 
@@ -123,6 +123,22 @@ if __name__ == '__main__':
         help='Template URL for upload test',
     )
 
+    parser.add_argument(
+        '-v', '--upload_vol_url',
+        dest='upload_vol_url',
+        type=str,
+        default='http://10.220.2.77/uploadvol.ova',
+        help='Volume for volume upload test (datavg expexted)',
+    )
+
+    parser.add_argument(
+        '-y', '--hypervisor',
+        dest='hypervisor',
+        type=str,
+        default='vmware',
+        help='hypervisor(vmware,xenserver)',
+    )
+
     # Assign parsed arguments
     args = parser.parse_args()
     zone_name = args.zone_name
@@ -132,12 +148,14 @@ if __name__ == '__main__':
     test_type = args.test_type
     iso_url = args.iso_url
     template_url = args.template_url
+    upload_vol_url = args.upload_vol_url
+    hypervisor = args.hypervisor
     keep_snapshots = args.keep_snapshots
 
     #print('keep_snapshots: %s' % keep_snapshots)
     #sys.exit()
 
-    upload_vol_url='http://10.220.2.77/uploadvol.ova'
+    #upload_vol_url='http://10.220.2.77/uploadvol.ova'
 
     ### Obtain the domain id ###
 
@@ -360,7 +378,7 @@ if __name__ == '__main__':
             print('ERROR: %s failed to Start' % process.name)
     elif test_type == 'template':
         output_name='out_%s' % network_name
-        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, api,),)
+        process = multiprocessing.Process(target=template_test, args=(zone_id, network_name, template_id, domain_id, account_name, ostype_id, iso_url, template_url, hypervisor, api,),)
         process.name = process_name
         process.start()
         processes.append(process)
